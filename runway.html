@@ -1,0 +1,1118 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Runway — Does the money last?</title>
+<style>
+  :root {
+    --bg: #f6f7f9; --panel: #ffffff; --ink: #1b1f24; --muted: #5b6572;
+    --line: #dde2e8; --accent: #2f6fed; --accent-ink: #ffffff;
+    --ok: #1a7f4b; --bad: #b3261e; --input-bg: #ffffff;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14171c; --panel: #1c2028; --ink: #e7eaee; --muted: #9aa4b2;
+      --line: #2c323c; --accent: #6d97f7; --accent-ink: #0b1220;
+      --ok: #4fd489; --bad: #ff8a80; --input-bg: #11151b;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font: 15px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    padding: 24px;
+  }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  .sub { color: var(--muted); margin: 0 0 20px; max-width: 70ch; }
+  .layout { display: grid; grid-template-columns: minmax(320px, 460px) 1fr; gap: 20px; align-items: start; }
+  @media (max-width: 980px) { .layout { grid-template-columns: 1fr; } }
+  .panel {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+    padding: 16px 18px;
+  }
+  details { border: 1px solid var(--line); border-radius: 8px; margin-bottom: 10px; background: var(--panel); }
+  details summary {
+    cursor: pointer; padding: 10px 12px; font-weight: 600; font-size: 13.5px;
+    list-style: none; display: flex; align-items: center; gap: 8px;
+  }
+  details summary::-webkit-details-marker { display: none; }
+  details summary::before { content: "▸"; color: var(--muted); font-size: 11px; transition: transform .15s; }
+  details[open] summary::before { transform: rotate(90deg); }
+  .fields { padding: 4px 12px 14px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px 14px; }
+  .fields.one-col { grid-template-columns: 1fr; }
+  .field { display: flex; flex-direction: column; gap: 3px; }
+  .field.span2 { grid-column: 1 / -1; }
+  label { font-size: 12px; color: var(--muted); }
+  input, select {
+    background: var(--input-bg); color: var(--ink); border: 1px solid var(--line);
+    border-radius: 6px; padding: 7px 8px; font-size: 14px; width: 100%; font-family: inherit;
+  }
+  input:focus, select:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .hint { color: var(--muted); font-size: 11px; margin-top: 1px; }
+  .actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 14px 0 6px; }
+  button {
+    font: inherit; font-weight: 600; font-size: 13.5px; padding: 9px 14px; border-radius: 7px;
+    border: 1px solid var(--line); background: var(--panel); color: var(--ink); cursor: pointer;
+  }
+  button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+  button:hover { filter: brightness(1.06); }
+  button:disabled { opacity: 0.6; cursor: wait; filter: none; }
+  input[type=file] { display: none; }
+  #status { font-size: 12.5px; color: var(--muted); min-height: 16px; }
+  #summary {
+    padding: 14px 16px; border-radius: 8px; border: 1px solid var(--line); margin-bottom: 14px;
+    font-size: 14.5px;
+  }
+  #summary.ok { border-color: var(--ok); }
+  #summary.bad { border-color: var(--bad); }
+  #summary b { display: block; margin-bottom: 4px; font-size: 15.5px; }
+  #summary.ok b { color: var(--ok); }
+  #summary.bad b { color: var(--bad); }
+  .legend { font-size: 12px; color: var(--muted); margin-bottom: 12px; line-height: 1.5; }
+  .chart-wrap { margin-bottom: 16px; }
+  svg { width: 100%; height: auto; display: block; }
+  .table-toolbar { display: flex; justify-content: flex-start; margin-bottom: 6px; }
+  .col-picker { position: relative; }
+  .col-picker-panel {
+    position: absolute; left: 0; top: calc(100% + 4px); background: var(--panel); border: 1px solid var(--line);
+    border-radius: 8px; padding: 8px 10px; box-shadow: 0 6px 20px rgba(0,0,0,0.18); z-index: 5;
+    display: flex; flex-direction: column; gap: 5px; max-height: 320px; overflow-y: auto;
+    width: min(85vw, 220px);
+  }
+  .col-picker-panel[hidden] { display: none; }
+  .col-picker-panel .col-actions { display: flex; gap: 6px; padding-bottom: 4px; margin-bottom: 2px; border-bottom: 1px solid var(--line); }
+  .col-picker-panel .col-actions button { font-size: 11px; padding: 3px 7px; }
+  .col-item { font-size: 12.5px; display: flex; align-items: center; gap: 6px; cursor: pointer; }
+  .col-item input { flex: 0 0 auto; margin: 0; width: 14px; height: 14px; }
+  .col-item span { flex: 1 1 auto; min-width: 0; }
+  .table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 8px; }
+  table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; font-size: 12.5px; white-space: nowrap; }
+  th, td { padding: 6px 9px; text-align: right; border-bottom: 1px solid var(--line); }
+  th:first-child, td:first-child, th:nth-child(2), td:nth-child(2) { text-align: left; }
+  thead th { position: sticky; top: 0; background: var(--panel); border-bottom: 2px solid var(--line); z-index: 1; }
+  tbody tr:hover { background: color-mix(in srgb, var(--accent) 8%, transparent); }
+  .placeholder { color: var(--muted); text-align: center; padding: 40px 20px; }
+  footer { margin-top: 28px; padding-top: 16px; border-top: 1px solid var(--line); }
+  footer h2 { font-size: 13px; margin: 0 0 8px; color: var(--muted); font-weight: 600; letter-spacing: 0.02em; text-transform: uppercase; }
+  .notes { display: grid; grid-template-columns: max-content 1fr; gap: 6px 16px; margin: 0 0 16px; }
+  .notes dt { font-size: 12px; font-weight: 600; color: var(--ink); white-space: nowrap; }
+  .notes dd { font-size: 12px; color: var(--muted); margin: 0; line-height: 1.5; }
+  .fine { color: var(--muted); font-size: 11.5px; max-width: 90ch; }
+</style>
+</head>
+<body>
+
+<h1>Runway — Does the money last?</h1>
+<p class="sub">A deliberately simple year-by-year drawdown model. Edit any field below and press Run. Nothing here leaves your browser — there's no server, no account, no upload. Defaults are placeholders, not real numbers — replace them with yours.</p>
+
+<div class="layout">
+  <div class="panel" id="formPanel"></div>
+  <div class="panel">
+    <div class="actions">
+      <button class="primary" id="runBtn">▶ Run simulation</button>
+      <button id="mcBtn">🎲 Run Monte Carlo</button>
+      <button id="saveBtn">⬇ Save my numbers</button>
+      <button id="loadBtn">⬆ Load my numbers</button>
+      <input type="file" id="loadFile" accept="application/json">
+    </div>
+    <div id="status"></div>
+    <div id="results">
+      <div class="placeholder">Press "Run simulation" to see results.</div>
+    </div>
+  </div>
+</div>
+
+<footer>
+  <h2>Table notes</h2>
+  <dl class="notes">
+    <dt>Dollars</dt><dd>Every figure is in today's terms — real, inflation-adjusted — not nominal future dollars.</dd>
+    <dt>x123,456</dt><dd>The FHSA closed that year; the balance transferred tax-free into that person's RRSP.</dd>
+    <dt>Gap</dt><dd>Shortfall still unmet after Checking → Savings → NonReg → GIC → RRSP → TFSA withdrawals, in that order. 0 means the year was fully covered.</dd>
+    <dt>RDSP</dt><dd>Only appears for the second person — it's an individual disability plan, not a joint account.</dd>
+    <dt>Checking</dt><dd>Always earns 0% (erodes with inflation); drawn first to cover any shortfall.</dd>
+    <dt>Savings</dt><dd>Earns its own configured rate; drawn next, and is also where leftover surplus beyond FHSA/TFSA room ends up.</dd>
+    <dt>GIC</dt><dd>A guaranteed-rate slice split out of non-reg; drawn after NonReg but before RRSP/TFSA.</dd>
+  </dl>
+  <p class="fine">Not a tax return — tax is a graduated federal + provincial approximation, not the ITA. "Run simulation" is one deterministic path; "Run Monte Carlo" randomizes only the portfolio return across many trials — it's a check on return variability, not a full economic model. Not advice. Ported from runway.py — keep the two in sync if you change the model logic.</p>
+</footer>
+
+<script>
+"use strict";
+
+/* ---------- real tax data ----------
+   RATES_AS_OF: bump this every time the brackets/BPA below are re-verified.
+   Plan: re-check monthly against taxtips.ca (all provinces/territories on one
+   site, updated promptly each budget) even though brackets themselves usually
+   only move once a year at budget time or with January indexation — a monthly
+   check just catches admendments/corrections sooner. */
+const RATES_AS_OF = "2026-08";
+
+const FEDERAL_BRACKETS = [[0,58523,0.140],[58523,117045,0.205],[117045,181440,0.260],[181440,258482,0.290],[258482,Infinity,0.330]];
+const FEDERAL_BPA = 16452;
+
+// Not modeled anywhere below (same "close enough for planning" simplification
+// as the federal/BC/MB brackets already made): provincial surtaxes (Ontario,
+// PEI), low-income tax reductions/clawbacks (NB, PEI, NS), and Quebec's own
+// separate credit system beyond the basic personal amount. Quebec's federal
+// abatement (a flat 16.5% cut to federal tax for QC residents, since Quebec
+// runs its own parallel tax system) IS modeled — see incomeTax() below.
+const MANITOBA_BRACKETS = [[0,47564,0.108],[47564,101200,0.1275],[101200,Infinity,0.174]];
+const MANITOBA_BPA = 15780;
+const BC_BRACKETS = [[0,50363,0.056],[50363,100728,0.077],[100728,115648,0.105],[115648,140430,0.1229],[140430,190405,0.147],[190405,265545,0.168],[265545,Infinity,0.205]];
+const BC_BPA = 13216;
+const ALBERTA_BRACKETS = [[0,61200,0.08],[61200,154259,0.10],[154259,185111,0.12],[185111,246813,0.13],[246813,370220,0.14],[370220,Infinity,0.15]];
+const ALBERTA_BPA = 22769;
+const SASKATCHEWAN_BRACKETS = [[0,53462,0.105],[53462,152902,0.125],[152902,Infinity,0.145]];
+const SASKATCHEWAN_BPA = 20381;
+const ONTARIO_BRACKETS = [[0,51446,0.0505],[51446,102894,0.0915],[102894,150000,0.1116],[150000,220000,0.1216],[220000,Infinity,0.1316]];
+const ONTARIO_BPA = 12989;
+const QUEBEC_BRACKETS = [[0,54345,0.14],[54345,108680,0.19],[108680,132245,0.24],[132245,Infinity,0.2575]];
+const QUEBEC_BPA = 18952;
+const QUEBEC_FEDERAL_ABATEMENT_PCT = 0.165; // cuts federal tax for QC residents by this fraction
+const NOVA_SCOTIA_BRACKETS = [[0,29590,0.0879],[29590,59180,0.1495],[59180,93000,0.1667],[93000,150000,0.1750],[150000,Infinity,0.21]];
+const NOVA_SCOTIA_BPA = 11932;
+const NEW_BRUNSWICK_BRACKETS = [[0,52333,0.094],[52333,104666,0.14],[104666,193861,0.16],[193861,Infinity,0.195]];
+const NEW_BRUNSWICK_BPA = 13664;
+const PEI_BRACKETS = [[0,33928,0.095],[33928,65820,0.1347],[65820,106890,0.166],[106890,142250,0.1762],[142250,200000,0.19],[200000,Infinity,0.20]];
+const PEI_BPA = 15000;
+const NEWFOUNDLAND_BRACKETS = [[0,44678,0.087],[44678,89354,0.145],[89354,159528,0.158],[159528,223340,0.178],[223340,285319,0.198],[285319,570638,0.208],[570638,1141275,0.213],[1141275,Infinity,0.218]];
+const NEWFOUNDLAND_BPA = 11188;
+const YUKON_BRACKETS = [[0,58523,0.064],[58523,117045,0.09],[117045,500000,0.109],[500000,Infinity,0.128]];
+const YUKON_BPA = 16452;
+const NWT_BRACKETS = [[0,53003,0.059],[53003,106009,0.086],[106009,172346,0.122],[172346,Infinity,0.1405]];
+const NWT_BPA = 17842;
+const NUNAVUT_BRACKETS = [[0,55801,0.04],[55801,111602,0.07],[111602,181439,0.09],[181439,Infinity,0.115]];
+const NUNAVUT_BPA = 19659;
+
+const PROVINCIAL_BRACKETS = {
+  MB: MANITOBA_BRACKETS, BC: BC_BRACKETS, AB: ALBERTA_BRACKETS, SK: SASKATCHEWAN_BRACKETS,
+  ON: ONTARIO_BRACKETS, QC: QUEBEC_BRACKETS, NS: NOVA_SCOTIA_BRACKETS, NB: NEW_BRUNSWICK_BRACKETS,
+  PE: PEI_BRACKETS, NL: NEWFOUNDLAND_BRACKETS, YT: YUKON_BRACKETS, NT: NWT_BRACKETS, NU: NUNAVUT_BRACKETS,
+};
+const PROVINCIAL_BPA = {
+  MB: MANITOBA_BPA, BC: BC_BPA, AB: ALBERTA_BPA, SK: SASKATCHEWAN_BPA,
+  ON: ONTARIO_BPA, QC: QUEBEC_BPA, NS: NOVA_SCOTIA_BPA, NB: NEW_BRUNSWICK_BPA,
+  PE: PEI_BPA, NL: NEWFOUNDLAND_BPA, YT: YUKON_BPA, NT: NWT_BPA, NU: NUNAVUT_BPA,
+};
+
+function bracketTax(income, brackets) {
+  let tax = 0;
+  for (const [lo, hi, rate] of brackets) {
+    if (income <= lo) break;
+    tax += (Math.min(income, hi) - lo) * rate;
+  }
+  return tax;
+}
+function bracketMarginalRate(income, brackets) {
+  for (const [lo, hi, rate] of brackets) if (income <= hi) return rate;
+  return brackets[brackets.length - 1][2];
+}
+function incomeTax(income, province) {
+  const pb = PROVINCIAL_BRACKETS[province], pbpa = PROVINCIAL_BPA[province];
+  let fed = Math.max(0, bracketTax(income, FEDERAL_BRACKETS) - FEDERAL_BPA * FEDERAL_BRACKETS[0][2]);
+  if (province === "QC") fed *= (1 - QUEBEC_FEDERAL_ABATEMENT_PCT);
+  const prov = Math.max(0, bracketTax(income, pb) - pbpa * pb[0][2]);
+  return fed + prov;
+}
+function marginalRate(income, province) {
+  const fedRate = bracketMarginalRate(income, FEDERAL_BRACKETS) * (province === "QC" ? (1 - QUEBEC_FEDERAL_ABATEMENT_PCT) : 1);
+  return fedRate + bracketMarginalRate(income, PROVINCIAL_BRACKETS[province]);
+}
+function rrifMinPct(age) {
+  if (age < 71) return age < 90 ? 1 / (90 - age) : 0.20;
+  const table = {71:.0528,72:.0540,73:.0553,74:.0567,75:.0582,76:.0598,77:.0617,78:.0636,79:.0658,80:.0682,
+                 81:.0708,82:.0738,83:.0771,84:.0808,85:.0851,86:.0899,87:.0955,88:.1021,89:.1099,90:.1192,
+                 91:.1306,92:.1449,93:.1634,94:.1879};
+  return table[age] !== undefined ? table[age] : 0.20;
+}
+function rdspLdapPct(age) { return age < 80 ? 1 / (3 + (80 - age)) : 1/3; }
+function savingsEffectiveNominalRate(rate, method, freq) {
+  if (method === "simple") return rate;
+  const n = freq === "daily" ? 365 : (freq === "monthly" ? 12 : 1);
+  return Math.pow(1 + rate / n, n) - 1;
+}
+
+/* ---------- form field manifest ----------
+   Plain numeric/text fields are declared here and rendered generically.
+   A few special-case fields (CPP lookup table, nullable ages, province
+   selects) are hand-written in the HTML below instead. */
+const SECTIONS = [
+  { title: "Names", open: true, fields: [
+    { id: "p1Name", label: "Person 1 name", type: "text", def: "Person 1" },
+    { id: "p2Name", label: "Person 2 name", type: "text", def: "Person 2" },
+  ]},
+  { title: "Timeline", open: true, fields: [
+    { id: "startYear", label: "Start year", type: "int", def: 2026 },
+    { id: "ageP1", label: "{p1} age", type: "int", def: 55 },
+    { id: "ageP2", label: "{p2} age", type: "int", def: 45 },
+    { id: "runUntilAgeP1", label: "Run until {p1} age", type: "int", def: 95 },
+  ]},
+  { title: "Account balances (today's $)", open: true, fields: [
+    { id: "checkingP1", label: "Checking — {p1}", type: "money", def: 2000 },
+    { id: "checkingP2", label: "Checking — {p2}", type: "money", def: 2000 },
+    { id: "savingsP1", label: "Savings — {p1}", type: "money", def: 5000 },
+    { id: "savingsP2", label: "Savings — {p2}", type: "money", def: 5000 },
+    { id: "rrspP1", label: "RRSP — {p1}", type: "money", def: 100000 },
+    { id: "rrspP2", label: "RRSP — {p2}", type: "money", def: 20000 },
+    { id: "tfsaP1", label: "TFSA — {p1}", type: "money", def: 60000 },
+    { id: "tfsaP2", label: "TFSA — {p2}", type: "money", def: 30000 },
+    { id: "nonregP1", label: "Non-reg — {p1}", type: "money", def: 0 },
+    { id: "nonregP2", label: "Non-reg — {p2}", type: "money", def: 0 },
+    { id: "gicP1", label: "GIC — {p1}", type: "money", def: 5000 },
+    { id: "gicP2", label: "GIC — {p2}", type: "money", def: 0 },
+    { id: "gicRateNominal", label: "GIC rate (nominal, %)", type: "pct", def: 3.65 },
+  ]},
+  { title: "Work income", open: true, fields: [
+    { id: "workIncomeP1", label: "{p1} income (gross, /yr)", type: "money", def: 70000 },
+    { id: "workUntilAgeP1", label: "{p1} works until age", type: "int", def: 67 },
+    { id: "workIncomeP2", label: "{p2} income (gross, /yr)", type: "money", def: 45000 },
+    { id: "workUntilAgeP2", label: "{p2} works until age", type: "int", def: 65 },
+  ]},
+  { title: "OAS", open: true, fields: [
+    { id: "oasMonthly", label: "OAS per person (monthly, today's $)", type: "money", def: 730 },
+    { id: "oasStart", label: "OAS start age", type: "int", def: 65 },
+  ]},
+  { title: "Spending", open: true, fields: [
+    { id: "spendAnnual", label: "Annual spend (household, today's $)", type: "money", def: 65000, span2: true },
+    { id: "spendInflation", label: "Spend inflation (%/yr)", type: "pct", def: 3.72 },
+  ]},
+  { title: "Returns & fees", open: true, fields: [
+    { id: "returnNominal", label: "Portfolio return (nominal, %/yr)", type: "pct", def: 5.5 },
+    { id: "inflation", label: "Inflation (%/yr)", type: "pct", def: 2.5 },
+    { id: "feePctP1", label: "Account fees — {p1} (%/yr)", type: "pct", def: 1.5 },
+    { id: "feePctP2", label: "Account fees — {p2} (%/yr)", type: "pct", def: 1.5 },
+  ]},
+  { title: "Province & tax", open: true, fields: [] },
+  { title: "RRSP / TFSA contribution room", open: false, fields: [
+    { id: "rrspRoomP1", label: "RRSP room — {p1}", type: "money", def: 20000 },
+    { id: "rrspRoomP2", label: "RRSP room — {p2}", type: "money", def: 20000 },
+    { id: "rrspAccrualPct", label: "RRSP accrual (% of earned income)", type: "pct", def: 18 },
+    { id: "rrspDollarLimit", label: "RRSP annual dollar limit", type: "money", def: 33810 },
+    { id: "tfsaRoomP1", label: "TFSA room — {p1}", type: "money", def: 7000 },
+    { id: "tfsaRoomP2", label: "TFSA room — {p2}", type: "money", def: 7000 },
+    { id: "tfsaAnnualRoom", label: "TFSA annual dollar limit", type: "money", def: 7000 },
+  ]},
+  { title: "FHSA", open: false, fields: [
+    { id: "fhsaAnnualContribP1", label: "Annual contribution — {p1}", type: "money", def: 8000 },
+    { id: "fhsaAnnualContribP2", label: "Annual contribution — {p2}", type: "money", def: 8000 },
+    { id: "fhsaLifetimeCap", label: "Lifetime cap (per person)", type: "money", def: 40000 },
+    { id: "fhsaYearsUntilClose", label: "Years until forced close", type: "int", def: 15 },
+  ]},
+  { title: "RDSP — {p2}'s disability savings plan", open: false, fields: [
+    { id: "rdspP2", label: "Starting balance", type: "money", def: 0 },
+    { id: "rdspAnnualContrib", label: "Steady-state contribution/yr", type: "money", def: 1500 },
+    { id: "rdspCatchupContrib", label: "Catch-up contribution/yr", type: "money", def: 3500 },
+    { id: "rdspCatchupYears", label: "Catch-up window (years)", type: "int", def: 10 },
+    { id: "rdspGrantMultiplier", label: "Grant multiplier (x per $1)", type: "num", def: 3.0 },
+    { id: "rdspAnnualGrantCap", label: "Annual grant cap ($)", type: "money", def: 10500 },
+    { id: "rdspGrantLifetimeCap", label: "Lifetime grant cap ($)", type: "money", def: 70000 },
+    { id: "rdspContribUntilAgeP2", label: "Grants/bonds stop at {p2} age", type: "int", def: 49 },
+    { id: "rdspLdapStartAgeP2", label: "Mandatory payout starts at {p2} age", type: "int", def: 60 },
+  ]},
+  { title: "Inheritances (today's $, blank age = never)", open: false, fields: [
+    { id: "inheritanceAmountP1", label: "Amount — {p1}", type: "money", def: 0 },
+    { id: "inheritanceAgeP1", label: "At {p1} age", type: "nullint", def: null },
+    { id: "inheritanceAmountP2", label: "Amount — {p2}", type: "money", def: 0 },
+    { id: "inheritanceAgeP2", label: "At {p2} age", type: "nullint", def: null },
+  ]},
+  { title: "Survivor scenario (blank age = never)", open: false, fields: [
+    { id: "deathAgeP1", label: "{p1} dies at age", type: "nullint", def: null },
+    { id: "deathAgeP2", label: "{p2} dies at age", type: "nullint", def: null },
+    { id: "survivorSpendPct", label: "Survivor spend (% of joint)", type: "pct", def: 80 },
+    { id: "cppSurvivorPct", label: "CPP survivor top-up (%)", type: "pct", def: 60 },
+  ]},
+  { title: "Monte Carlo", open: false, fields: [
+    { id: "mcTrials", label: "Number of trials", type: "int", def: 1000 },
+    { id: "mcReturnStdev", label: "Return volatility (std dev, %/yr)", type: "pct", def: 12, span2: true },
+  ]},
+];
+
+/* CPP fields are hand-rendered (lookup table for P1, formula fields for P2) */
+// CPP amounts come straight from each person's real My Service Canada Account
+// estimate — MSCA only ever quotes 60/65/70, so that's the only choice offered
+// (no synthetic early/late formula in between).
+function cppPersonFieldsHtml(person, defaults) {
+  return `
+  <div class="field span2 fields" style="grid-template-columns:1fr 1fr 1fr;">
+    <div class="field"><label>{${person}} CPP at 60 (mo.)</label><input id="cpp${person}At60" type="number" step="0.01" value="${defaults[60]}"></div>
+    <div class="field"><label>{${person}} CPP at 65 (mo.)</label><input id="cpp${person}At65" type="number" step="0.01" value="${defaults[65]}"></div>
+    <div class="field"><label>{${person}} CPP at 70 (mo.)</label><input id="cpp${person}At70" type="number" step="0.01" value="${defaults[70]}"></div>
+  </div>
+  <div class="field span2"><label>{${person}} CPP start age</label>
+    <select id="cppStart${person}"><option value="60">60</option><option value="65" selected>65</option><option value="70">70</option></select>
+  </div>`;
+}
+
+const CPP_SECTION_HTML = `
+<details open><summary>CPP</summary><div class="fields">
+  ${cppPersonFieldsHtml("P1", { 60: 796.65, 65: 1244.76, 70: 1767.56 })}
+  ${cppPersonFieldsHtml("P2", { 60: 650.00, 65: 900.00, 70: 1278.00 })}
+  <div class="field span2"><span class="hint">Real amounts from each person's My Service Canada Account (msca-mcsc.esdc.gc.ca) — MSCA only quotes estimates at ages 60, 65, and 70.</span></div>
+</div></details>`;
+
+/* Checking always earns 0% nominal (not user-editable — that's just what
+   chequing accounts pay); Savings gets a real rate and a selectable
+   interest method since sub-annual compounding earns more than simple
+   interest at the same quoted rate. */
+const SAVINGS_INTEREST_HTML = `
+<details open><summary>Savings interest method</summary><div class="fields">
+  <div class="field"><label>Savings rate (nominal, %/yr)</label><input id="savingsRateNominal" type="number" step="0.01" value="1.50">
+    <span class="hint">Assiniboine Credit Union High Rate Savings, verified 2026</span>
+  </div>
+  <div class="field"><label>Interest method</label>
+    <select id="savingsInterestMethod"><option value="simple">Simple</option><option value="compound" selected>Compound</option></select>
+  </div>
+  <div class="field span2"><label>Compounding frequency (compound method only)</label>
+    <select id="savingsCompoundFreq"><option value="annually">Annually</option><option value="monthly" selected>Monthly</option><option value="daily">Daily</option></select>
+  </div>
+</div></details>`;
+
+const PROVINCE_OPTIONS = [
+  ["AB", "Alberta"], ["BC", "British Columbia"], ["MB", "Manitoba"], ["NB", "New Brunswick"],
+  ["NL", "Newfoundland and Labrador"], ["NT", "Northwest Territories"], ["NS", "Nova Scotia"],
+  ["NU", "Nunavut"], ["ON", "Ontario"], ["PE", "Prince Edward Island"], ["QC", "Quebec"],
+  ["SK", "Saskatchewan"], ["YT", "Yukon"],
+];
+function provinceOptionsHtml(selected) {
+  return PROVINCE_OPTIONS.map(([code, name]) =>
+    `<option value="${code}"${code === selected ? " selected" : ""}>${name}</option>`).join("");
+}
+
+const PROVINCE_SECTION_HTML = `
+<details open><summary>Province &amp; tax</summary><div class="fields">
+  <div class="field"><label>Province (before move)</label>
+    <select id="provinceBefore">${provinceOptionsHtml("MB")}</select>
+  </div>
+  <div class="field"><label>Province (after move)</label>
+    <select id="provinceAfter">${provinceOptionsHtml("BC")}</select>
+  </div>
+  <div class="field"><label>Move year (blank = never move)</label><input id="provinceSwitchYear" type="number" placeholder="e.g. 2030"></div>
+  <div class="field"><label>Cost-of-living step-up on move (%)</label><input id="provincialSpendAdjustPct" type="number" step="0.1" value="25"></div>
+  <div class="field span2"><span class="hint">All 10 provinces + 3 territories, real ${new Date(RATES_AS_OF + "-01").toLocaleString("en-US",{month:"long",year:"numeric"})} brackets and basic personal amounts. Quebec's federal-abatement adjustment is included; provincial surtaxes and low-income reductions (ON, PE, NB, NS) are not — see code comments.</span></div>
+</div></details>`;
+
+/* ---------- render the form ---------- */
+function fieldInputHtml(f) {
+  if (f.type === "nullint") return `<input id="${f.id}" type="number" step="1" placeholder="never">`;
+  if (f.type === "text") return `<input id="${f.id}" type="text" value="${f.def}">`;
+  if (f.type === "int") return `<input id="${f.id}" type="number" step="1" value="${f.def}">`;
+  if (f.type === "money") return `<input id="${f.id}" type="number" step="1" value="${f.def}">`;
+  if (f.type === "pct") return `<input id="${f.id}" type="number" step="0.01" value="${f.def}">`;
+  return `<input id="${f.id}" type="number" step="0.01" value="${f.def}">`;
+}
+
+function renderForm() {
+  const panel = document.getElementById("formPanel");
+  let html = "";
+  for (const section of SECTIONS) {
+    if (section.title === "Province & tax") { html += PROVINCE_SECTION_HTML; continue; }
+    if (section.fields.length === 0) continue;
+    html += `<details ${section.open ? "open" : ""}><summary data-tpl="${section.title}"></summary><div class="fields">`;
+    for (const f of section.fields) {
+      html += `<div class="field${f.span2 ? " span2" : ""}"><label data-tpl="${f.label}"></label>${fieldInputHtml(f)}</div>`;
+    }
+    if (section.title === "Spending") {
+      html += `<div class="field span2"><span class="hint" id="spendGrowthReadout">Effective real spend growth: —</span></div>`;
+    }
+    if (section.title === "Monte Carlo") {
+      html += `<div class="field span2"><span class="hint">Randomizes the Portfolio return above year-to-year (sequence-of-returns risk).
+        Inflation, GIC, Checking, and Savings stay fixed. 12% is a rough placeholder for a diversified growth portfolio's
+        annual volatility — not specific to your holdings.</span></div>`;
+    }
+    html += `</div></details>`;
+    if (section.title === "Account balances (today's $)") html += SAVINGS_INTEREST_HTML;
+    if (section.title === "Work income") html += CPP_SECTION_HTML; // CPP sits between Work income and OAS
+  }
+  panel.innerHTML = html;
+  applyNames();
+}
+
+function updateSpendGrowthReadout() {
+  const el = document.getElementById("spendGrowthReadout");
+  if (!el) return;
+  const spendInflation = parseFloat(document.getElementById("spendInflation").value);
+  const inflation = parseFloat(document.getElementById("inflation").value);
+  if (isNaN(spendInflation) || isNaN(inflation)) { el.textContent = "Effective real spend growth: —"; return; }
+  const realSpendGrowth = (1 + spendInflation / 100) / (1 + inflation / 100) - 1;
+  const sign = realSpendGrowth >= 0 ? "+" : "";
+  el.textContent = `Effective real spend growth: ${sign}${(realSpendGrowth * 100).toFixed(2)}%/yr `
+    + `(net of the Inflation field below — this, not the raw % above, is what actually shows up in the Spend column)`;
+}
+
+function applyNames() {
+  const p1 = document.getElementById("p1Name").value.trim() || "Person 1";
+  const p2 = document.getElementById("p2Name").value.trim() || "Person 2";
+  document.querySelectorAll("[data-tpl]").forEach(el => {
+    el.textContent = el.getAttribute("data-tpl").replace(/{p1}/g, p1).replace(/{p2}/g, p2);
+  });
+}
+
+/* ---------- gather / populate form values ---------- */
+function num(id) { return parseFloat(document.getElementById(id).value); }
+function pct(id) { return parseFloat(document.getElementById(id).value) / 100; }
+function nullableInt(id) {
+  const v = document.getElementById(id).value;
+  return v === "" ? null : parseInt(v, 10);
+}
+function txt(id) { return document.getElementById(id).value.trim(); }
+
+function gatherParams() {
+  const p = {};
+  for (const section of SECTIONS) {
+    for (const f of section.fields) {
+      if (f.type === "text") p[f.id] = txt(f.id);
+      else if (f.type === "int") p[f.id] = parseInt(document.getElementById(f.id).value, 10);
+      else if (f.type === "nullint") p[f.id] = nullableInt(f.id);
+      else if (f.type === "pct") p[f.id] = pct(f.id);
+      else p[f.id] = num(f.id);
+    }
+  }
+  p.cppP1Monthly = { 60: num("cppP1At60"), 65: num("cppP1At65"), 70: num("cppP1At70") };
+  p.cppStartP1 = parseInt(document.getElementById("cppStartP1").value, 10);
+  p.cppP2Monthly = { 60: num("cppP2At60"), 65: num("cppP2At65"), 70: num("cppP2At70") };
+  p.cppStartP2 = parseInt(document.getElementById("cppStartP2").value, 10);
+  p.provinceBefore = document.getElementById("provinceBefore").value;
+  p.provinceAfter = document.getElementById("provinceAfter").value;
+  p.provinceSwitchYear = nullableInt("provinceSwitchYear");
+  p.provincialSpendAdjustPct = num("provincialSpendAdjustPct") / 100;
+  p.savingsRateNominal = pct("savingsRateNominal");
+  p.savingsInterestMethod = document.getElementById("savingsInterestMethod").value;
+  p.savingsCompoundFreq = document.getElementById("savingsCompoundFreq").value;
+  return p;
+}
+
+const ALL_FIELD_IDS = () => {
+  const ids = [];
+  for (const section of SECTIONS) for (const f of section.fields) ids.push(f.id);
+  return ids.concat(["cppP1At60","cppP1At65","cppP1At70","cppStartP1",
+                      "cppP2At60","cppP2At65","cppP2At70","cppStartP2",
+                      "provinceBefore","provinceAfter","provinceSwitchYear","provincialSpendAdjustPct",
+                      "savingsRateNominal","savingsInterestMethod","savingsCompoundFreq"]);
+};
+
+function exportValues() {
+  const out = {};
+  for (const id of ALL_FIELD_IDS()) {
+    const el = document.getElementById(id);
+    if (el) out[id] = el.value;
+  }
+  return out;
+}
+function importValues(obj) {
+  for (const id of Object.keys(obj)) {
+    const el = document.getElementById(id);
+    if (el) el.value = obj[id];
+  }
+  applyNames();
+  updateSpendGrowthReadout();
+}
+
+/* ---------- the model itself (ported from runway.py) ---------- */
+// yearlyNominalReturns: optional array (one nominal portfolio return per
+// year) for a Monte Carlo trial. Null/omitted uses the fixed p.returnNominal
+// every year — the original deterministic path. GIC/Checking/Savings stay
+// deterministic either way (that's the point of a "guaranteed" bucket).
+function simulate(p, yearlyNominalReturns) {
+  let rrsp_c = p.rrspP1, rrsp_k = p.rrspP2;
+  let tfsa_c = p.tfsaP1, tfsa_k = p.tfsaP2;
+  let nonreg_c = p.nonregP1, nonreg_k = p.nonregP2;
+  let gic_c = p.gicP1, gic_k = p.gicP2;
+  let checking_c = p.checkingP1, checking_k = p.checkingP2;
+  let savings_c = p.savingsP1, savings_k = p.savingsP2;
+  let rdsp_k = p.rdspP2;
+  let rdsp_grant_received = 0;
+  let spend = p.spendAnnual;
+
+  const cpp_c = p.cppP1Monthly[p.cppStartP1] * 12;
+  const cpp_k = p.cppP2Monthly[p.cppStartP2] * 12;
+  const oas = p.oasMonthly * 12;
+
+  let rrsp_room_c = p.rrspRoomP1, rrsp_room_k = p.rrspRoomP2;
+  let tfsa_room_c = p.tfsaRoomP1, tfsa_room_k = p.tfsaRoomP2;
+  let tfsa_withdrawn_c = 0, tfsa_withdrawn_k = 0;
+  let fhsa_c = 0, fhsa_k = 0;
+  let fhsa_remaining_c = p.fhsaLifetimeCap, fhsa_remaining_k = p.fhsaLifetimeCap;
+  let fhsa_closed_c = false, fhsa_closed_k = false;
+
+  const realReturnGic = (1 + p.gicRateNominal) / (1 + p.inflation) - 1;
+  // Checking always earns 0% nominal — real balance just erodes with inflation, same as cash in real life
+  const realReturnChecking = (1 + 0) / (1 + p.inflation) - 1;
+  const savingsNominal = savingsEffectiveNominalRate(p.savingsRateNominal, p.savingsInterestMethod, p.savingsCompoundFreq);
+  const realReturnSavings = (1 + savingsNominal) / (1 + p.inflation) - 1;
+  const realSpendGrowth = (1 + p.spendInflation) / (1 + p.inflation) - 1;
+
+  const rows = [];
+  let failedYear = null;
+  const nYears = p.runUntilAgeP1 - p.ageP1 + 1;
+
+  for (let i = 0; i < nYears; i++) {
+    const year = p.startYear + i;
+    const age_c = p.ageP1 + i, age_k = p.ageP2 + i;
+    const chris_alive = p.deathAgeP1 === null || age_c < p.deathAgeP1;
+    const carey_alive = p.deathAgeP2 === null || age_k < p.deathAgeP2;
+
+    // this year's portfolio return — either the fixed assumption, or (Monte
+    // Carlo) a randomized draw shared by both people (same market, different
+    // fee drag), converted to each person's own real, fee-adjusted return
+    const nominalReturnThisYear = yearlyNominalReturns ? yearlyNominalReturns[i] : p.returnNominal;
+    const realReturnC = (1 + nominalReturnThisYear - p.feePctP1) / (1 + p.inflation) - 1;
+    const realReturnK = (1 + nominalReturnThisYear - p.feePctP2) / (1 + p.inflation) - 1;
+
+    const province = (p.provinceSwitchYear !== null && year >= p.provinceSwitchYear) ? p.provinceAfter : p.provinceBefore;
+    if (p.provinceSwitchYear !== null && year === p.provinceSwitchYear) spend *= (1 + p.provincialSpendAdjustPct);
+
+    if (i > 0) {
+      const priorEarnedC = ((age_c - 1) < p.workUntilAgeP1 && chris_alive) ? p.workIncomeP1 : 0;
+      const priorEarnedK = ((age_k - 1) < p.workUntilAgeP2 && carey_alive) ? p.workIncomeP2 : 0;
+      rrsp_room_c += Math.min(p.rrspAccrualPct * priorEarnedC, p.rrspDollarLimit);
+      rrsp_room_k += Math.min(p.rrspAccrualPct * priorEarnedK, p.rrspDollarLimit);
+      tfsa_room_c += p.tfsaAnnualRoom + tfsa_withdrawn_c;
+      tfsa_room_k += p.tfsaAnnualRoom + tfsa_withdrawn_k;
+    }
+    tfsa_withdrawn_c = 0; tfsa_withdrawn_k = 0;
+
+    let fhsa_transfer_c = 0, fhsa_transfer_k = 0;
+    if (!fhsa_closed_c && (i >= p.fhsaYearsUntilClose || age_c >= 71)) {
+      fhsa_transfer_c = fhsa_c; rrsp_c += fhsa_c; fhsa_c = 0; fhsa_closed_c = true;
+    }
+    if (!fhsa_closed_k && (i >= p.fhsaYearsUntilClose || age_k >= 71)) {
+      fhsa_transfer_k = fhsa_k; rrsp_k += fhsa_k; fhsa_k = 0; fhsa_closed_k = true;
+    }
+
+    if (p.deathAgeP1 !== null && age_c === p.deathAgeP1) {
+      rrsp_k += rrsp_c; rrsp_c = 0;
+      tfsa_k += tfsa_c; tfsa_c = 0;
+      rrsp_k += fhsa_c; fhsa_c = 0;
+      nonreg_k += nonreg_c; nonreg_c = 0;
+      gic_k += gic_c; gic_c = 0;
+      checking_k += checking_c; checking_c = 0;
+      savings_k += savings_c; savings_c = 0;
+    }
+    if (p.deathAgeP2 !== null && age_k === p.deathAgeP2) {
+      rrsp_c += rrsp_k; rrsp_k = 0;
+      tfsa_c += tfsa_k; tfsa_k = 0;
+      rrsp_c += fhsa_k; fhsa_k = 0;
+      nonreg_c += nonreg_k; nonreg_k = 0;
+      gic_c += gic_k; gic_k = 0;
+      checking_c += checking_k; checking_k = 0;
+      savings_c += savings_k; savings_k = 0;
+      nonreg_c += rdsp_k; rdsp_k = 0;
+    }
+
+    let income_c = 0, income_k = 0, cppReceived = 0;
+    if (age_c < p.workUntilAgeP1 && chris_alive) income_c += p.workIncomeP1;
+    if (age_k < p.workUntilAgeP2 && carey_alive) income_k += p.workIncomeP2;
+    if (age_c >= p.cppStartP1 && chris_alive) { income_c += cpp_c; cppReceived += cpp_c; }
+    if (age_k >= p.cppStartP2 && carey_alive) { income_k += cpp_k; cppReceived += cpp_k; }
+    if (age_c >= p.oasStart && chris_alive) income_c += oas;
+    if (age_k >= p.oasStart && carey_alive) income_k += oas;
+    if (!chris_alive && carey_alive && age_c >= p.cppStartP1) { income_k += cpp_c * p.cppSurvivorPct; cppReceived += cpp_c * p.cppSurvivorPct; }
+    if (!carey_alive && chris_alive && age_k >= p.cppStartP2) { income_c += cpp_k * p.cppSurvivorPct; cppReceived += cpp_k * p.cppSurvivorPct; }
+
+    const forced_c = age_c >= 72 ? rrsp_c * rrifMinPct(age_c) : 0;
+    const forced_k = age_k >= 72 ? rrsp_k * rrifMinPct(age_k) : 0;
+    rrsp_c -= forced_c; rrsp_k -= forced_k;
+    income_c += forced_c; income_k += forced_k;
+
+    const forced_rdsp = (age_k >= p.rdspLdapStartAgeP2 && carey_alive) ? rdsp_k * rdspLdapPct(age_k) : 0;
+    rdsp_k -= forced_rdsp; income_k += forced_rdsp;
+
+    let deductTotal = forced_c + forced_k + forced_rdsp;
+    let contribTotal = 0;
+
+    const tax_c = incomeTax(income_c, province);
+    const tax_k = incomeTax(income_k, province);
+    const afterTaxIncome = (income_c - tax_c) + (income_k - tax_k);
+    const totalIncome = income_c + income_k;
+    const blendedMarginal = totalIncome > 0
+      ? (marginalRate(income_c, province) * income_c + marginalRate(income_k, province) * income_k) / totalIncome
+      : marginalRate(0, province);
+
+    const livingSpouses = (chris_alive ? 1 : 0) + (carey_alive ? 1 : 0);
+    const spendPct = livingSpouses === 2 ? 1.0 : (livingSpouses === 1 ? p.survivorSpendPct : 0.0);
+    let gap = spend * spendPct - afterTaxIncome;
+
+    if (p.inheritanceAgeP1 !== null && age_c === p.inheritanceAgeP1) { nonreg_c += p.inheritanceAmountP1; contribTotal += p.inheritanceAmountP1; }
+    if (p.inheritanceAgeP2 !== null && age_k === p.inheritanceAgeP2) { nonreg_k += p.inheritanceAmountP2; contribTotal += p.inheritanceAmountP2; }
+
+    if (age_k <= p.rdspContribUntilAgeP2 && carey_alive) {
+      const rdspContrib = i < p.rdspCatchupYears ? p.rdspCatchupContrib : p.rdspAnnualContrib;
+      const grant = Math.min(rdspContrib * p.rdspGrantMultiplier, p.rdspAnnualGrantCap, p.rdspGrantLifetimeCap - rdsp_grant_received);
+      rdsp_k += rdspContrib + grant; rdsp_grant_received += grant; contribTotal += rdspContrib + grant;
+    }
+
+    if (gap > 0) {
+      const take = Math.min(gap, checking_c + checking_k);
+      const tot = checking_c + checking_k;
+      if (tot > 0) { checking_c -= take * checking_c / tot; checking_k -= take * checking_k / tot; }
+      gap -= take; deductTotal += take;
+    }
+    if (gap > 0) {
+      const take = Math.min(gap, savings_c + savings_k);
+      const tot = savings_c + savings_k;
+      if (tot > 0) { savings_c -= take * savings_c / tot; savings_k -= take * savings_k / tot; }
+      gap -= take; deductTotal += take;
+    }
+    if (gap > 0) {
+      const take = Math.min(gap, nonreg_c + nonreg_k);
+      const tot = nonreg_c + nonreg_k;
+      if (tot > 0) { nonreg_c -= take * nonreg_c / tot; nonreg_k -= take * nonreg_k / tot; }
+      gap -= take; deductTotal += take;
+    }
+    if (gap > 0) {
+      const take = Math.min(gap, gic_c + gic_k);
+      const tot = gic_c + gic_k;
+      if (tot > 0) { gic_c -= take * gic_c / tot; gic_k -= take * gic_k / tot; }
+      gap -= take; deductTotal += take;
+    }
+    if (gap > 0) {
+      const grossNeeded = gap / (1 - blendedMarginal);
+      const take = Math.min(grossNeeded, rrsp_c + rrsp_k);
+      const tot = rrsp_c + rrsp_k;
+      if (tot > 0) { rrsp_c -= take * rrsp_c / tot; rrsp_k -= take * rrsp_k / tot; }
+      gap -= take * (1 - blendedMarginal); deductTotal += take;
+    }
+    if (gap > 0) {
+      const take = Math.min(gap, tfsa_c + tfsa_k);
+      const tot = tfsa_c + tfsa_k;
+      if (tot > 0) {
+        const wC = take * tfsa_c / tot, wK = take - wC;
+        tfsa_c -= wC; tfsa_k -= wK; tfsa_withdrawn_c += wC; tfsa_withdrawn_k += wK;
+      }
+      gap -= take; deductTotal += take;
+    }
+    if (gap < 0) {
+      const surplus = -gap; contribTotal += surplus;
+      let want_c, want_k;
+      if (chris_alive && carey_alive) { want_c = surplus / 2; want_k = surplus / 2; }
+      else if (chris_alive) { want_c = surplus; want_k = 0; }
+      else { want_c = 0; want_k = surplus; }
+
+      const fhsaTakeC = !fhsa_closed_c ? Math.min(p.fhsaAnnualContribP1, fhsa_remaining_c, want_c) : 0;
+      const fhsaTakeK = !fhsa_closed_k ? Math.min(p.fhsaAnnualContribP2, fhsa_remaining_k, want_k) : 0;
+      fhsa_c += fhsaTakeC; fhsa_k += fhsaTakeK;
+      fhsa_remaining_c -= fhsaTakeC; fhsa_remaining_k -= fhsaTakeK;
+      const refundC = fhsaTakeC * marginalRate(income_c, province);
+      const refundK = fhsaTakeK * marginalRate(income_k, province);
+      nonreg_c += refundC; nonreg_k += refundK; contribTotal += refundC + refundK;
+      want_c -= fhsaTakeC; want_k -= fhsaTakeK;
+
+      const takeC = Math.min(want_c, tfsa_room_c);
+      const takeK = Math.min(want_k, tfsa_room_k);
+      tfsa_c += takeC; tfsa_k += takeK;
+      tfsa_room_c -= takeC; tfsa_room_k -= takeK;
+      // leftover beyond FHSA/TFSA room parks in Savings — Checking earns 0%,
+      // so it's never where you'd deliberately park new surplus
+      savings_c += want_c - takeC; savings_k += want_k - takeK;
+      gap = 0;
+    }
+
+    const spendThisYear = spend * spendPct;
+
+    rrsp_c *= (1 + realReturnC); rrsp_k *= (1 + realReturnK);
+    tfsa_c *= (1 + realReturnC); tfsa_k *= (1 + realReturnK);
+    nonreg_c *= (1 + realReturnC); nonreg_k *= (1 + realReturnK);
+    gic_c *= (1 + realReturnGic); gic_k *= (1 + realReturnGic);
+    checking_c *= (1 + realReturnChecking); checking_k *= (1 + realReturnChecking);
+    savings_c *= (1 + realReturnSavings); savings_k *= (1 + realReturnSavings);
+    rdsp_k *= (1 + realReturnK);
+    fhsa_c *= (1 + realReturnC); fhsa_k *= (1 + realReturnK);
+    spend *= (1 + realSpendGrowth);
+
+    const total = rrsp_c + rrsp_k + tfsa_c + tfsa_k + nonreg_c + nonreg_k + gic_c + gic_k + rdsp_k + fhsa_c + fhsa_k
+      + checking_c + checking_k + savings_c + savings_k;
+
+    rows.push({ year, ageC: age_c, ageK: age_k, spend: spendThisYear, income: afterTaxIncome,
+      gap: Math.max(gap, 0), cpp: cppReceived, contrib: contribTotal, deduct: deductTotal,
+      checkingC: checking_c, checkingK: checking_k, savingsC: savings_c, savingsK: savings_k,
+      rrspC: rrsp_c, rrspK: rrsp_k, tfsaC: tfsa_c, tfsaK: tfsa_k, nonregC: nonreg_c, nonregK: nonreg_k,
+      gicC: gic_c, gicK: gic_k, rdspK: rdsp_k, fhsaC: fhsa_c, fhsaK: fhsa_k,
+      fhsaTransferC: fhsa_transfer_c, fhsaTransferK: fhsa_transfer_k, total });
+
+    if (gap > 0.5 && failedYear === null) failedYear = { year, ageC: age_c };
+  }
+
+  return { rows, failedYear, runUntilAge: p.runUntilAgeP1 };
+}
+
+/* ---------- Monte Carlo ----------
+   Sequence-of-returns risk: each trial re-runs the exact same simulate()
+   with a randomized nominal-return path instead of the single fixed
+   assumption. Only portfolio return is randomized — inflation, GIC, Checking,
+   and Savings all stay at their fixed/guaranteed rates, same simplification
+   the rest of this model already makes elsewhere. */
+function boxMullerNormal() {
+  let u = 0, v = 0;
+  while (u === 0) u = Math.random();
+  while (v === 0) v = Math.random();
+  return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
+}
+
+function percentile(sortedArr, frac) {
+  const idx = (sortedArr.length - 1) * frac;
+  const lo = Math.floor(idx), hi = Math.ceil(idx);
+  if (lo === hi) return sortedArr[lo];
+  return sortedArr[lo] + (sortedArr[hi] - sortedArr[lo]) * (idx - lo);
+}
+
+function runMonteCarlo(p) {
+  const trials = p.mcTrials;
+  const stdev = p.mcReturnStdev;
+  const nYears = p.runUntilAgeP1 - p.ageP1 + 1;
+  const allTotals = [];
+  const failedAges = [];
+  let successCount = 0;
+
+  for (let t = 0; t < trials; t++) {
+    const yearlyReturns = new Array(nYears);
+    for (let i = 0; i < nYears; i++) yearlyReturns[i] = p.returnNominal + stdev * boxMullerNormal();
+    const result = simulate(p, yearlyReturns);
+    allTotals.push(result.rows.map(r => r.total));
+    if (result.failedYear) failedAges.push(result.failedYear.ageC);
+    else successCount++;
+  }
+
+  const p10 = new Array(nYears), p50 = new Array(nYears), p90 = new Array(nYears);
+  for (let i = 0; i < nYears; i++) {
+    const col = allTotals.map(trial => trial[i]).sort((a, b) => a - b);
+    p10[i] = percentile(col, 0.10);
+    p50[i] = percentile(col, 0.50);
+    p90[i] = percentile(col, 0.90);
+  }
+
+  failedAges.sort((a, b) => a - b);
+  const medianFailedAge = failedAges.length > 0 ? percentile(failedAges, 0.5) : null;
+
+  return {
+    trials, successRate: successCount / trials, failCount: failedAges.length,
+    medianFailedAge, p10, p50, p90,
+    years: Array.from({ length: nYears }, (_, i) => p.startYear + i),
+    ages: Array.from({ length: nYears }, (_, i) => p.ageP1 + i),
+  };
+}
+
+/* ---------- rendering ---------- */
+function fmt(n) { return Math.round(n).toLocaleString("en-US"); }
+function fhsaCell(balance, transfer) { return transfer > 0 ? "x" + fmt(transfer) : fmt(balance); }
+
+/* ---------- results table column picker ----------
+   columnHidden persists at module scope so a toggle survives across re-runs.
+   Default view: Year, Ages, Spend, Income, Gap, Total — everything else
+   starts hidden until shown via the Columns picker. */
+const columnHidden = {
+  cpp: true, contrib: true, deduct: true,
+  checkingC: true, checkingK: true, savingsC: true, savingsK: true,
+  rrspC: true, rrspK: true, tfsaC: true, tfsaK: true,
+  nonregC: true, nonregK: true, gicC: true, gicK: true,
+  rdspK: true, fhsaC: true, fhsaK: true,
+};
+
+function getColumnDefs(p1, p2) {
+  return [
+    { id: "year", label: "Year", essential: true, get: r => r.year },
+    { id: "ages", label: "Ages", essential: true, get: r => `${r.ageC}/${r.ageK}` },
+    { id: "spend", label: "Spend", get: r => fmt(r.spend) },
+    { id: "income", label: "Income", get: r => fmt(r.income) },
+    { id: "gap", label: "Gap", get: r => fmt(r.gap) },
+    { id: "cpp", label: "CPP", get: r => fmt(r.cpp) },
+    { id: "contrib", label: "Contrib", get: r => fmt(r.contrib) },
+    { id: "deduct", label: "Deduct", get: r => fmt(r.deduct) },
+    { id: "checkingC", label: `Checking-${p1}`, get: r => fmt(r.checkingC) },
+    { id: "checkingK", label: `Checking-${p2}`, get: r => fmt(r.checkingK) },
+    { id: "savingsC", label: `Savings-${p1}`, get: r => fmt(r.savingsC) },
+    { id: "savingsK", label: `Savings-${p2}`, get: r => fmt(r.savingsK) },
+    { id: "rrspC", label: `RRSP-${p1}`, get: r => fmt(r.rrspC) },
+    { id: "rrspK", label: `RRSP-${p2}`, get: r => fmt(r.rrspK) },
+    { id: "tfsaC", label: `TFSA-${p1}`, get: r => fmt(r.tfsaC) },
+    { id: "tfsaK", label: `TFSA-${p2}`, get: r => fmt(r.tfsaK) },
+    { id: "nonregC", label: `NonReg-${p1}`, get: r => fmt(r.nonregC) },
+    { id: "nonregK", label: `NonReg-${p2}`, get: r => fmt(r.nonregK) },
+    { id: "gicC", label: `GIC-${p1}`, get: r => fmt(r.gicC) },
+    { id: "gicK", label: `GIC-${p2}`, get: r => fmt(r.gicK) },
+    { id: "rdspK", label: `RDSP-${p2}`, get: r => fmt(r.rdspK) },
+    { id: "fhsaC", label: `FHSA-${p1}`, get: r => fhsaCell(r.fhsaC, r.fhsaTransferC) },
+    { id: "fhsaK", label: `FHSA-${p2}`, get: r => fhsaCell(r.fhsaK, r.fhsaTransferK) },
+    { id: "total", label: "Total", essential: true, get: r => fmt(r.total) },
+  ];
+}
+
+function renderTable(rows, columns) {
+  const head = columns.map(c =>
+    `<th data-col="${c.id}"${columnHidden[c.id] ? ' style="display:none"' : ""}>${c.label}</th>`).join("");
+  let body = "";
+  for (const r of rows) {
+    body += "<tr>" + columns.map(c =>
+      `<td data-col="${c.id}"${columnHidden[c.id] ? ' style="display:none"' : ""}>${c.get(r)}</td>`).join("") + "</tr>";
+  }
+  return `<table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>`;
+}
+
+function renderColumnPicker(columns) {
+  const items = columns.filter(c => !c.essential).map(c => {
+    const checked = columnHidden[c.id] ? "" : "checked";
+    return `<label class="col-item"><input type="checkbox" data-col-toggle="${c.id}" ${checked}><span>${c.label}</span></label>`;
+  }).join("");
+  return `<div class="table-toolbar"><div class="col-picker">
+    <button type="button" id="colPickerBtn">Columns ▾</button>
+    <div class="col-picker-panel" id="colPickerPanel" hidden>
+      <div class="col-actions">
+        <button type="button" id="colShowAll">Show all</button>
+        <button type="button" id="colHideAll">Hide all</button>
+      </div>
+      ${items}
+    </div>
+  </div></div>`;
+}
+
+// Single delegated "click outside closes it" listener, attached once (in
+// init(), not here) — looks up the current panel/button by id every time, so
+// it keeps working correctly across re-renders instead of accumulating a new
+// stale listener (with a detached panel reference) on every "Run" click.
+function closeColumnPickerIfClickedOutside(e) {
+  const panel = document.getElementById("colPickerPanel");
+  const btn = document.getElementById("colPickerBtn");
+  if (!panel || panel.hidden) return;
+  if (panel.contains(e.target) || e.target === btn) return;
+  panel.hidden = true;
+}
+
+function wireColumnPicker(columns) {
+  const btn = document.getElementById("colPickerBtn");
+  const panel = document.getElementById("colPickerPanel");
+  if (!btn || !panel) return;
+
+  btn.addEventListener("click", () => {
+    panel.hidden = !panel.hidden;
+  });
+
+  const setColumnVisible = (id, visible) => {
+    columnHidden[id] = !visible;
+    document.querySelectorAll(`[data-col="${id}"]`).forEach(el => {
+      el.style.display = visible ? "" : "none";
+    });
+  };
+
+  panel.querySelectorAll("input[data-col-toggle]").forEach(input => {
+    input.addEventListener("change", () => setColumnVisible(input.dataset.colToggle, input.checked));
+  });
+  document.getElementById("colShowAll").addEventListener("click", () => {
+    panel.querySelectorAll("input[data-col-toggle]").forEach(input => {
+      input.checked = true;
+      setColumnVisible(input.dataset.colToggle, true);
+    });
+  });
+  document.getElementById("colHideAll").addEventListener("click", () => {
+    panel.querySelectorAll("input[data-col-toggle]").forEach(input => {
+      input.checked = false;
+      setColumnVisible(input.dataset.colToggle, false);
+    });
+  });
+}
+
+function renderChart(rows, p1, p2) {
+  const w = 900, h = 260, padL = 55, padR = 10, padT = 10, padB = 24;
+  const years = rows.map(r => r.year);
+  const totals = rows.map(r => r.total);
+  const maxV = Math.max(...totals, 1);
+  const x = i => padL + (w - padL - padR) * (i / Math.max(rows.length - 1, 1));
+  const y = v => padT + (h - padT - padB) * (1 - v / maxV);
+  const pathD = totals.map((v, i) => `${i === 0 ? "M" : "L"}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(" ");
+
+  let gridlines = "";
+  for (let g = 0; g <= 4; g++) {
+    const v = maxV * g / 4;
+    const gy = y(v);
+    gridlines += `<line x1="${padL}" y1="${gy}" x2="${w - padR}" y2="${gy}" stroke="var(--line)" stroke-width="1"/>`;
+    gridlines += `<text x="${padL - 6}" y="${gy + 4}" text-anchor="end" font-size="10" fill="var(--muted)">$${Math.round(v/1000)}k</text>`;
+  }
+  let xticks = "";
+  const step = Math.max(Math.round(rows.length / 8), 1);
+  for (let i = 0; i < rows.length; i += step) {
+    xticks += `<text x="${x(i)}" y="${h - 6}" text-anchor="middle" font-size="10" fill="var(--muted)">${years[i]}</text>`;
+  }
+
+  return `<div class="chart-wrap"><svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="xMidYMid meet">
+    ${gridlines}${xticks}
+    <path d="${pathD}" fill="none" stroke="var(--accent)" stroke-width="2"/>
+  </svg></div>`;
+}
+
+function renderFanChart(mc) {
+  const w = 900, h = 320, padL = 55, padR = 10, padT = 10, padB = 24;
+  const n = mc.years.length;
+  const maxV = Math.max(...mc.p90, 1);
+  const x = i => padL + (w - padL - padR) * (i / Math.max(n - 1, 1));
+  const y = v => padT + (h - padT - padB) * (1 - Math.max(v, 0) / maxV);
+
+  const bandTop = mc.p90.map((v, i) => `${i === 0 ? "M" : "L"}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(" ");
+  const bandBottom = mc.p10.map((v, i) => `L${x(n - 1 - i).toFixed(1)},${y(mc.p10[n - 1 - i]).toFixed(1)}`).join(" ");
+  const bandPath = `${bandTop} ${bandBottom} Z`;
+  const medianPath = mc.p50.map((v, i) => `${i === 0 ? "M" : "L"}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(" ");
+
+  let gridlines = "";
+  for (let g = 0; g <= 4; g++) {
+    const v = maxV * g / 4;
+    const gy = y(v);
+    gridlines += `<line x1="${padL}" y1="${gy}" x2="${w - padR}" y2="${gy}" stroke="var(--line)" stroke-width="1"/>`;
+    gridlines += `<text x="${padL - 6}" y="${gy + 4}" text-anchor="end" font-size="10" fill="var(--muted)">$${Math.round(v/1000)}k</text>`;
+  }
+  let xticks = "";
+  const step = Math.max(Math.round(n / 8), 1);
+  for (let i = 0; i < n; i += step) {
+    xticks += `<text x="${x(i)}" y="${h - 6}" text-anchor="middle" font-size="10" fill="var(--muted)">${mc.years[i]}</text>`;
+  }
+
+  return `<div class="chart-wrap"><svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="xMidYMid meet">
+    ${gridlines}${xticks}
+    <path d="${bandPath}" fill="var(--accent)" fill-opacity="0.18" stroke="none"/>
+    <path d="${medianPath}" fill="none" stroke="var(--accent)" stroke-width="2"/>
+  </svg></div>`;
+}
+
+function renderMonteCarloResults(mc, p) {
+  const p1 = p.p1Name || "Person 1";
+  const successPct = (mc.successRate * 100).toFixed(1);
+  const cls = mc.successRate >= 0.9 ? "ok" : (mc.successRate >= 0.6 ? "" : "bad");
+  const summaryHtml = `<div id="summary" class="${cls}">
+    <b>${successPct}% of ${mc.trials.toLocaleString()} trials never ran short of money by ${p1} age ${p.runUntilAgeP1}.</b>
+    ${mc.failCount > 0
+      ? `${mc.failCount.toLocaleString()} trial${mc.failCount === 1 ? "" : "s"} ran short — median failure age ${Math.round(mc.medianFailedAge)}.`
+      : "No trial ran short."}
+  </div>`;
+
+  const legendHtml = `<div class="legend">Shaded band = 10th–90th percentile of total net worth across all trials each year; line = median (50th percentile).
+    Only Portfolio return is randomized (${(p.mcReturnStdev * 100).toFixed(1)}% std dev around ${(p.returnNominal * 100).toFixed(2)}% mean, redrawn every year of every trial) —
+    inflation, GIC, Checking, and Savings all stay at their fixed rates. This is a randomness check on the return assumption, not a full economic model.</div>`;
+
+  const chartHtml = renderFanChart(mc);
+
+  document.getElementById("results").innerHTML = summaryHtml + legendHtml + chartHtml;
+}
+
+function renderResults(result, p) {
+  const p1 = p.p1Name || "Person 1", p2 = p.p2Name || "Person 2";
+  const { rows, failedYear, runUntilAge } = result;
+
+  let summaryHtml;
+  if (failedYear) {
+    summaryHtml = `<div id="summary" class="bad"><b>⚠ Money runs short in ${failedYear.year} (${p1} age ${failedYear.ageC}).</b>
+      Levers, roughly in order of impact: spend less, work longer, delay CPP, higher returns (which you don't control).</div>`;
+  } else {
+    summaryHtml = `<div id="summary" class="ok"><b>✓ On these assumptions, money lasts to ${p1} age ${runUntilAge}.</b>
+      Before celebrating: rerun with returns 1% lower and spending 10% higher. If it still holds, that means something.</div>`;
+  }
+
+  const chartHtml = renderChart(rows, p1, p2);
+
+  const columns = getColumnDefs(p1, p2);
+  const toolbarHtml = renderColumnPicker(columns);
+  const tableHtml = `<div class="table-wrap">${renderTable(rows, columns)}</div>`;
+
+  document.getElementById("results").innerHTML = summaryHtml + chartHtml + toolbarHtml + tableHtml;
+  wireColumnPicker(columns);
+}
+
+/* ---------- wiring ---------- */
+function validateCppStartAges(p) {
+  if (![60,65,70].includes(p.cppStartP1)) throw new Error(`${p.p1Name}'s CPP start age must be 60, 65, or 70.`);
+  if (![60,65,70].includes(p.cppStartP2)) throw new Error(`${p.p2Name}'s CPP start age must be 60, 65, or 70.`);
+}
+
+function run() {
+  const btn = document.getElementById("runBtn");
+  const status = document.getElementById("status");
+  btn.disabled = true;
+  btn.textContent = "Calculating…";
+  status.textContent = "";
+  // yield to the browser first so "Calculating…" actually paints before the work runs
+  setTimeout(() => {
+    try {
+      const p = gatherParams();
+      validateCppStartAges(p);
+      const result = simulate(p);
+      renderResults(result, p);
+    } catch (e) {
+      status.textContent = "Error: " + e.message;
+    } finally {
+      btn.disabled = false;
+      btn.textContent = "▶ Run simulation";
+    }
+  }, 10);
+}
+
+function runMonteCarloUI() {
+  const btn = document.getElementById("mcBtn");
+  const status = document.getElementById("status");
+  btn.disabled = true;
+  btn.textContent = "Calculating…";
+  status.textContent = "";
+  setTimeout(() => {
+    try {
+      const p = gatherParams();
+      validateCppStartAges(p);
+      if (!(p.mcTrials > 0)) throw new Error("Number of trials must be a positive number.");
+      const mc = runMonteCarlo(p);
+      renderMonteCarloResults(mc, p);
+    } catch (e) {
+      status.textContent = "Error: " + e.message;
+    } finally {
+      btn.disabled = false;
+      btn.textContent = "🎲 Run Monte Carlo";
+    }
+  }, 10);
+}
+
+function init() {
+  renderForm();
+  document.getElementById("p1Name").addEventListener("input", applyNames);
+  document.getElementById("p2Name").addEventListener("input", applyNames);
+  document.getElementById("spendInflation").addEventListener("input", updateSpendGrowthReadout);
+  document.getElementById("inflation").addEventListener("input", updateSpendGrowthReadout);
+  updateSpendGrowthReadout();
+  document.getElementById("runBtn").addEventListener("click", run);
+  document.getElementById("mcBtn").addEventListener("click", runMonteCarloUI);
+  document.addEventListener("click", closeColumnPickerIfClickedOutside);
+
+  document.getElementById("saveBtn").addEventListener("click", () => {
+    const blob = new Blob([JSON.stringify(exportValues(), null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    const name = (document.getElementById("p1Name").value.trim() || "runway").replace(/[^a-z0-9]+/gi, "-").toLowerCase();
+    a.href = url; a.download = `${name}-numbers.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    document.getElementById("status").textContent = "Saved.";
+  });
+
+  document.getElementById("loadBtn").addEventListener("click", () => document.getElementById("loadFile").click());
+  document.getElementById("loadFile").addEventListener("change", (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        importValues(JSON.parse(reader.result));
+        document.getElementById("status").textContent = "Loaded " + file.name;
+      } catch (err) {
+        document.getElementById("status").textContent = "Couldn't read that file: " + err.message;
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = "";
+  });
+
+  // best-effort auto-restore on the same browser/device; Save/Load above is the reliable path
+  try {
+    const saved = localStorage.getItem("runwayValues");
+    if (saved) importValues(JSON.parse(saved));
+  } catch (e) { /* ignore */ }
+  window.addEventListener("beforeunload", () => {
+    try { localStorage.setItem("runwayValues", JSON.stringify(exportValues())); } catch (e) { /* ignore */ }
+  });
+}
+
+init();
+</script>
+</body>
+</html>
