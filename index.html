@@ -6,6 +6,18 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>CashRunway — Does the money last?</title>
+<!-- Favicon as an inline SVG data: URI, which is the only kind this page can
+     have. A normal /favicon.ico is a file request, and the whole claim here is
+     that opening this page fetches nothing — a claim the sort of reader who
+     checks it will check in the network tab, where a favicon 404 is the first
+     thing they would see. A data: URI is part of the document, so the request
+     count stays at zero and it works from file:// with no network at all.
+
+     "#" has to be written %23: a data: URI is still a URI, and a literal # in
+     one starts the fragment, which would cut the SVG off mid-attribute.
+
+     A falling line, because that is what the tool draws. -->
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%232f6fed'/><path d='M6 8 L13 17 L19 14 L26 25' fill='none' stroke='%23ffffff' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'/></svg>">
 
 <style>
   :root {
