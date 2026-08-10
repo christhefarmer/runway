@@ -39,7 +39,7 @@
     padding: 24px;
   }
   h1 { font-size: 22px; margin: 0 0 4px; }
-  /* The six-question way in. Wider fields than the main form on purpose: this
+  /* The seven-question way in. Wider fields than the main form on purpose: this
      is the first thing a stranger meets, and it should read as a short form
      rather than as the top of a long one. */
   .quick {
@@ -218,7 +218,7 @@
   <p>This tool is for informational and educational purposes only. It does not provide financial, tax, legal, or investment advice, and nothing it produces should be relied on to make financial decisions — it's arithmetic on whatever assumptions you type in. Consult a qualified, licensed professional before acting on anything you see here.</p>
 </details>
 
-<!-- The six-question way in, rendered from QUICK_PANEL_HTML in
+<!-- The seven-question way in, rendered from QUICK_PANEL_HTML in
      src/js/20-sections.js. It seeds the real form and calls the same run() the
      Run button does, so there is one model and one code path, not a simplified
      second one that could disagree with it. -->
@@ -1333,7 +1333,7 @@ function provinceOptionsHtml(selected) {
     `<option value="${code}"${code === selected ? " selected" : ""}>${name}</option>`).join("");
 }
 
-/* The six-question way in.
+/* The seven-question way in.
 
    The full form is over a hundred inputs. That is a filter, and mostly a good
    one — the plans worth modelling here are genuinely that detailed — but it
@@ -1341,20 +1341,29 @@ function provinceOptionsHtml(selected) {
    typing. This asks the fewest questions that can produce an honest number,
    then hands the same numbers to the same simulate() the full form uses.
 
-   Six rather than five, and the extra one is deliberate. Every free calculator
-   this competes with takes a single "total savings" figure, which is precisely
-   why they get the answer wrong: a dollar in an RRSP is taxed on the way out
-   and a dollar in a TFSA is not, and drawdown order between them is most of
-   what this model exists to get right. Collapsing the three account boxes into
-   one would produce a number no better than the tools it is meant to beat, on
-   the exact axis where it beats them.
+   Two of the seven exist because collapsing them would give a wrong answer
+   rather than a rougher one:
 
-   Everything the six questions do not ask is stated back to the visitor in
+   The three account boxes. Every free calculator this competes with takes a
+   single "total savings" figure, which is precisely why they get the answer
+   wrong: a dollar in an RRSP is taxed on the way out and a dollar in a TFSA is
+   not, and drawdown order between them is most of what this model exists to
+   get right. One box would produce a number no better than the tools it is
+   meant to beat, on the exact axis where it beats them.
+
+   Housing, separately from spend. spendAnnual means living costs EXCLUDING
+   housing everywhere in this model — housing is its own category, its own
+   column, and is added on top. An "all-in" spend box therefore lies twice: it
+   feeds a figure into spendAnnual that does not mean what spendAnnual means,
+   and it silently double-counts the moment the visitor opens the full plan and
+   enters their real rent or mortgage, with nothing on screen to say so.
+
+   Everything the seven questions do not ask is stated back to the visitor in
    quickAssumptionsHtml() rather than left implicit — the point is a fast
    answer, not a black box. */
 const QUICK_PANEL_HTML = `
 <div class="quick" id="quick">
-  <h2>Start here — six questions</h2>
+  <h2>Start here — seven questions</h2>
   <p class="quick-lede">Enough for an honest first answer. Everything else starts at a sensible default, and you can open the full plan afterwards without retyping any of this.
     Hover or tab to a ${helpHtml("Like this one. They sit beside section titles and the fields most often misread, and every heading in the results table carries the same explanation on hover — which is where the detail lives now, rather than in a wall of notes at the bottom of the page.")} for an explanation of any field.</p>
   <div class="fields">
@@ -1368,8 +1377,10 @@ const QUICK_PANEL_HTML = `
       <input id="quickTfsa" type="number" step="1" min="0" placeholder="120000"></div>
     <div class="field"><div class="label-row"><label for="quickOther">Other savings</label>${helpHtml("Non-registered investments, cash, GICs — anything already taxed on the way in. Treated as a non-registered portfolio, so only its yearly income and realized gains are taxed, not the principal.")}</div>
       <input id="quickOther" type="number" step="1" min="0" placeholder="80000"></div>
-    <div class="field"><div class="label-row"><label for="quickSpend">Annual spend, all in</label>${helpHtml("Everything you live on in a year, including housing. Today's dollars, after-tax spending — the model works out the tax needed to fund it.")}</div>
-      <input id="quickSpend" type="number" step="1" min="0" placeholder="70000"></div>
+    <div class="field"><div class="label-row"><label for="quickSpend">Annual spend, not counting housing</label>${helpHtml("Everything you live on in a year EXCEPT rent or a mortgage payment, which is the next box. Housing is a separate category in this model and is added on top, so a figure entered in both would be counted twice. Today's dollars, and what you actually spend — the model works out the tax needed to fund it.")}</div>
+      <input id="quickSpend" type="number" step="1" min="0" placeholder="46000"></div>
+    <div class="field"><div class="label-row"><label for="quickHousing">Rent or mortgage (monthly)</label>${helpHtml("What the roof costs each month. Enter 0 if you own outright — no property tax or upkeep is modelled for owners, so mortgage-free genuinely is 0 here. A mortgage entered in this box is treated as running for the whole projection; if yours is paid off partway, open the full plan and set the payoff year.")}</div>
+      <input id="quickHousing" type="number" step="1" min="0" placeholder="2000"></div>
   </div>
   <div class="quick-actions">
     <button class="primary" id="quickRunBtn">▶ Does the money last?</button>
@@ -3230,14 +3241,14 @@ function applyScenario(id) {
   return s;
 }
 
-/* ---------- the six-question way in ---------- */
+/* ---------- the seven-question way in ---------- */
 
 // Read and check the six. These are not in ALL_FIELD_IDS — they are an input
 // shortcut, not model state, so they are deliberately outside gatherParams(),
 // exportValues() and the blank-field walk, and need their own checking.
 function readQuickFields() {
   const get = (id) => document.getElementById(id);
-  const nums = ["quickAge", "quickRrsp", "quickTfsa", "quickOther", "quickSpend"];
+  const nums = ["quickAge", "quickRrsp", "quickTfsa", "quickOther", "quickSpend", "quickHousing"];
   const missing = nums.filter(id => {
     const el = get(id);
     return el.value.trim() === "" || !Number.isFinite(el.valueAsNumber);
@@ -3259,15 +3270,15 @@ function readQuickFields() {
   return q;
 }
 
-/* The six answers, plus zeroes for every personal circumstance they do not
+/* The seven answers, plus zeroes for every personal circumstance they do not
    cover.
 
    The zeroes are the important half and they are easy to miss. The page ships
    with placeholder defaults that describe a whole imaginary household — a
    spouse aged 45, two salaries, a $180k mortgage, $190k spread across six
-   accounts. Overlaying six answers on top of that would quietly add all of it
+   accounts. Overlaying seven answers on top of that would quietly add all of it
    to the visitor's plan and produce a confident number about somebody else.
-   So anything the six questions do not ask about is cleared here, and anything
+   So anything the seven questions do not ask about is cleared here, and anything
    left standing is a rate or a government benefit rather than a circumstance:
    inflation, portfolio return, fees, CPP and OAS amounts, RRIF factors,
    contribution room.
@@ -3293,10 +3304,19 @@ function quickBaseline(q) {
     // No everyday float held back — the visitor gave one number for savings
     // and did not carve a buffer out of it.
     chequingBuffer: 0,
+    // Living costs only. simulate() adds housing on top of this — see the
+    // gap calculation in 50-model.js, `spend * spendPct + housingSpendThisYear`
+    // — so spendAnnual has never meant an all-in figure, and the quick panel
+    // must not collect one. Asking for an all-in number here fed spendAnnual
+    // something it does not mean, and then double-counted housing the moment
+    // the visitor opened the full plan and typed in their real rent.
     spendAnnual: q.quickSpend,
     provinceBefore: q.province, provinceAfter: q.province, provinceSwitchYear: "",
-    // Spend is stated all-in, so housing must not be charged a second time.
-    housingStatus: "rent", rentMonthly: 0, hasOtherProperty: false,
+    // Charged as rent, which runs every year of the projection. A mortgage is
+    // an approximation here: the real thing stops at its payoff year, which is
+    // in the full plan, not in seven questions. Erring toward paying it for
+    // life is the conservative direction for a "does the money last" answer.
+    housingStatus: "rent", rentMonthly: q.quickHousing, hasOtherProperty: false,
     // Circumstances nobody was asked about.
     pensionAnnualP1: 0, pensionAnnualP2: 0,
     rdspBalance: 0, rdspAnnualContrib: 0, rdspCatchupContrib: 0,
@@ -3309,7 +3329,7 @@ function quickBaseline(q) {
 }
 
 // Said out loud, because a fast answer that hides its assumptions is worth
-// less than no answer. Every line here is something the six questions did not
+// less than no answer. Every line here is something the seven questions did not
 // ask and the model nonetheless had to decide.
 function quickAssumptionsHtml() {
   const cpp = document.getElementById("cppP1At65").value;
@@ -3318,13 +3338,16 @@ function quickAssumptionsHtml() {
   const inf = document.getElementById("inflation").value;
   const fee = document.getElementById("feePctP1").value;
   const until = document.getElementById("runUntilAgeP1").value;
+  const housing = Number(document.getElementById("rentMonthly").value) > 0
+    ? "your housing cost is charged every year of the plan, on top of the spending figure, and never paid off"
+    : "no housing cost at all, since you entered 0 — right for an owner with no mortgage, wrong for anyone still paying one";
   return `<div class="legend quick-assumptions">
     <b>What it assumed, because you weren't asked:</b> you live alone and have already stopped working;
-    your spending figure covers housing, so no rent or mortgage is charged on top; CPP of $${cpp}/month and
-    OAS of $${oas}/month both starting at 65; a ${ret}% nominal return with ${inf}% inflation and ${fee}% fees;
+    ${housing}; CPP of $${cpp}/month and OAS of $${oas}/month both starting at 65;
+    a ${ret}% nominal return with ${inf}% inflation and ${fee}% fees;
     no workplace pension, no inheritance, no RDSP; and the plan runs to age ${until}.
     Any of those wrong changes the answer, sometimes a lot — <b>open the full plan</b> and they are all editable,
-    with your six answers already filled in.</div>`;
+    with your seven answers already filled in.</div>`;
 }
 
 function runQuickAnswer() {
@@ -3341,7 +3364,7 @@ function runQuickAnswer() {
 }
 
 // One way only. Someone who has opened the full plan and started editing it
-// should not have the six-question panel silently overwrite their work if they
+// should not have the seven-question panel silently overwrite their work if they
 // press its button again, so it goes away rather than staying live.
 function openFullPlan() {
   document.getElementById("formPanel").hidden = false;
@@ -3391,7 +3414,7 @@ function init() {
     const s = applyScenario(document.getElementById("scenarioPicker").value);
     if (!s) return;
     describeScenario(true);
-    // An example is a whole plan, not six answers — show the form it filled in,
+    // An example is a whole plan, not seven answers — show the form it filled in,
     // or the visitor sees a projection with every input hidden behind a button.
     openFullPlan();
     run();
@@ -3440,7 +3463,7 @@ function init() {
     const saved = localStorage.getItem("runwayValues");
     if (saved) {
       importValues(JSON.parse(saved));
-      // Someone with numbers of their own is past the six questions, and
+      // Someone with numbers of their own is past the seven questions, and
       // leaving the form hidden would show them an on-ramp while their own
       // restored plan sat invisible behind it.
       //
@@ -3449,7 +3472,7 @@ function init() {
       // EVERY unload — including a first-time visitor who typed nothing and
       // pressed reload. Keying off its mere presence sent that visitor
       // straight to the hundred-field form, filled with placeholder numbers
-      // they had never seen, which is the exact experience the six questions
+      // they had never seen, which is the exact experience the seven questions
       // exist to avoid.
       if (JSON.stringify(exportValues()) !== JSON.stringify(SHIPPED_DEFAULTS)) openFullPlan();
     }

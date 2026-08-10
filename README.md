@@ -1,7 +1,7 @@
 # Runway — Does the money last?
 
 A Canadian retirement drawdown calculator that runs entirely in your browser.
-Answer six questions for a first number, or open the full plan and model the
+Answer seven questions for a first number, or open the full plan and model the
 whole thing — year by year, out to whatever age you pick.
 
 **Use it here: <https://christhefarmer.github.io/runway/>**
@@ -21,9 +21,12 @@ inputs.
 
 ## What it does
 
-- **Six questions to a first answer** — age, province, RRSP/RRIF, TFSA, other
-  savings, annual spend. Everything it had to assume is listed back to you,
-  and opening the full plan carries your answers over.
+- **Seven questions to a first answer** — age, province, RRSP/RRIF, TFSA,
+  other savings, annual spend, and rent or mortgage. Spending and housing are
+  asked separately because the model treats them separately and adds housing
+  on top; a single all-in figure would be counted twice the moment you opened
+  the full plan and entered your real rent. Everything it had to assume is
+  listed back to you, and opening the full plan carries your answers over.
 - Models one or two people, with a second person who can be left out, join
   partway through, or leave partway through (with a chosen share of joint
   accounts staying behind).
@@ -57,7 +60,7 @@ inputs.
 1. Open <https://christhefarmer.github.io/runway/>, or download `index.html`
    and open it in any modern browser. Chrome, Firefox, Safari and Edge all
    work, online or off.
-2. Answer the six questions and press **Does the money last?** for a first
+2. Answer the seven questions and press **Does the money last?** for a first
    number, then **Open the full plan** to refine it. Nothing is retyped.
 3. In the full plan, **the defaults are placeholders, not real or typical
    numbers** — replace every field with your own before trusting the output.
