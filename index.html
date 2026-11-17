@@ -537,6 +537,10 @@ svg .line { fill: none; stroke-width: 2; stroke-linejoin: round; vector-effect: 
 svg .line.accent { stroke: var(--accent); }
 svg .line.cool { stroke: var(--cool); }
 svg .line.warm { stroke: var(--warm); stroke-width: 1.5; }
+/* The RRSP -> RRIF milestone (crMilestones in 75-ui.js). Accent because it is
+   the RRSP line's own colour in "Where the money sits"; dashed and thin so it
+   reads as a marker, never as a series. */
+svg .milestone { stroke: var(--accent); stroke-width: 1.25; stroke-dasharray: 4 3; opacity: .85; vector-effect: non-scaling-stroke; }
 svg .line.ink { stroke: var(--ink); stroke-width: 1.5; }
 svg .line.bad { stroke: var(--bad); }
 svg .line.faint { stroke: var(--faint); stroke-width: 1; }
@@ -774,6 +778,22 @@ dialog.print-notice button {
   font: inherit; padding: 7px 18px; border: 0; border-radius: 6px;
   background: var(--accent); color: var(--accent-ink); cursor: pointer;
 }
+
+/* ---------- milestones (RRSP -> RRIF) ---------- */
+.ms-flag { position: absolute; transform: translateX(-50%); padding: 1px 5px; border-radius: 4px;
+  font: 600 10px/1.3 var(--mono); color: var(--accent-ink); background: var(--accent);
+  white-space: nowrap; pointer-events: auto; cursor: help; z-index: 1; }
+.ms-flag.start { transform: none; }
+.ms-flag.end { transform: translateX(-100%); }
+.ms-legend { display: flex; gap: 8px; align-items: flex-start; margin: 10px 0 0;
+  font-size: 12px; line-height: 1.45; color: var(--ink-2); text-wrap: pretty; }
+.ms-legend .swatch { flex: none; width: 6px; height: 18px; }
+tbody tr.milestone td:first-child { box-shadow: inset 3px 0 0 var(--accent); }
+tbody tr.milestone { background: color-mix(in srgb, var(--accent) 8%, transparent); }
+.ms-badge { display: inline-block; margin-left: 6px; padding: 0 5px; border-radius: 4px;
+  font: 600 10px/1.5 var(--mono); color: var(--accent-ink); background: var(--accent);
+  vertical-align: 1px; cursor: help; white-space: nowrap; }
+.chart-readout .ms-note { flex-basis: 100%; color: var(--accent); }
 </style>
 </head>
 <body>
@@ -5261,7 +5281,8 @@ function crLegendHtml(spec) {
     + `</div>`;
 }
 
-function crChartHtml(spec, rows, mc, focused) {
+function crChartHtml(spec, rows, mc, focused, ms) {
+  ms = ms || [];
   const band = spec.band && mc ? mc : null;
   const top = spec.max(rows, band);
   const yWant = focused ? 5 : 3;
@@ -5281,8 +5302,10 @@ function crChartHtml(spec, rows, mc, focused) {
         <svg viewBox="0 0 ${CR_CHART.W} ${CR_CHART.VB}" preserveAspectRatio="none" aria-hidden="true">
           ${crGridHtml(top, yWant)}
           ${band ? `<path d="${crBandPath(band, rows, top, CR_CHART.W, CR_CHART.H)}" class="band"/>` : ""}
+          ${crMilestoneSvg(ms, rows.length)}
           ${paths}
         </svg>
+        ${crMilestoneFlags(ms, rows.length)}
         ${focused ? `<div class="crosshair"></div>` : ""}
       </div>
       <div class="x-unit">year<b>age</b></div>
@@ -5296,7 +5319,62 @@ function crRenderCharts(rows, p, mc) {
   // no longer exists would otherwise render nothing at all, turning a renamed
   // series into a blank pane.
   const focus = CR_CHARTS.find(c => c.id === CR.focusChart) || null;
-  return (focus ? [focus] : CR_CHARTS).map(c => crChartHtml(c, rows, mc, !!focus)).join("");
+  const ms = crMilestones(rows, p);
+  return (focus ? [focus] : CR_CHARTS).map(c => crChartHtml(c, rows, mc, !!focus, ms)).join("");
+}
+
+/* ---------- milestones: the RRSP becomes a RRIF ----------
+   The year each person turns 71. By December 31 of that year an RRSP has to
+   become a RRIF (or an annuity, or be cashed out); contributions end the same
+   day, and the minimum withdrawals start the following year. The model already
+   does all of that — the last contribution at 71 and the forced minimum from 72
+   in 50-model.js — but nothing on the Forecast said WHEN, so a plan's income
+   stepped up at 72 with no visible reason.
+
+   Derived from the rows the model returned rather than recomputed from the
+   ages, so a marker can only sit on a year the projection actually contains.
+   Only drawn for someone who holds an RRSP that year: a person with nothing to
+   convert has no milestone, and one who is already past 71 when the plan
+   starts converted before it, so there is nothing to mark. Pure, so the
+   charts, the table, the hover readout and the printed report all read one
+   answer, and test/run.js can check it. */
+function crMilestones(rows, p) {
+  const people = [{ name: p.p1Name || "Person 1", age: r => r.ageC, rrsp: r => r.rrspC }];
+  if (p.includeP2) people.push({ name: p.p2Name || "Person 2", age: r => r.ageK, rrsp: r => r.rrspK });
+  const out = [];
+  for (const who of people) {
+    const i = rows.findIndex(r => who.age(r) === 71);
+    if (i < 0) continue;
+    // The balance going into that year, or what is left at its end: either
+    // means there was an RRSP to convert.
+    const held = Math.max(who.rrsp(rows[i]), i ? who.rrsp(rows[i - 1]) : 0);
+    if (!(held >= 1)) continue;
+    const year = rows[i].year;
+    out.push({
+      i, year, who: who.name,
+      label: people.length > 1 ? `RRIF · ${who.name}` : "RRIF",
+      text: `${who.name} turns 71 in ${year}: the RRSP must be converted to a RRIF by December 31. `
+        + `RRSP contributions stop then, and minimum withdrawals start in ${year + 1}.`,
+    });
+  }
+  return out;
+}
+
+/* The marker on a chart: a dashed rule in the svg, at the same x the paths
+   use (crXPos through crXPct), and its label as HTML beside it rather than
+   <text> inside the stretched svg — the same reason the axis labels are HTML. */
+function crMilestoneSvg(ms, n) {
+  return ms.map(m => {
+    const x = crXPos(m.i, n, CR_CHART.W).toFixed(1);
+    return `<line x1="${x}" y1="0" x2="${x}" y2="${CR_CHART.H}" class="milestone"/>`;
+  }).join("");
+}
+function crMilestoneFlags(ms, n) {
+  return ms.map((m, k) => {
+    const pct = crXPct(m.i, n);
+    const edge = pct > 85 ? " end" : pct < 15 ? " start" : "";
+    return `<span class="ms-flag${edge}" style="left:${pct.toFixed(2)}%;top:${2 + k * 15}px" title="${attrEscape(m.text)}">${htmlEscape(m.label)}</span>`;
+  }).join("");
 }
 
 /* ---------- the forecast pane ---------- */
@@ -5315,11 +5393,24 @@ function crRenderForecast(result, p, mc) {
 
   const head = shown.map(c =>
     `<th${c.help ? ` tabindex="0" data-help="${attrEscape(c.help)}"` : ""}>${htmlEscape(c.label)}</th>`).join("");
-  const body = rows.map(r =>
-    `<tr${r.gap > 1 ? ' class="short"' : ""}>` + shown.map(c => `<td>${c.get(r)}</td>`).join("") + "</tr>").join("");
+  // A milestone row carries a badge in its first cell and a rule down its
+  // left edge, so the year stands out in the table as it does on the charts.
+  const ms = crMilestones(rows, p);
+  const msAt = new Map();
+  for (const m of ms) msAt.set(m.i, (msAt.get(m.i) || []).concat(m));
+  const body = rows.map((r, i) => {
+    const here = msAt.get(i) || [];
+    const cls = [r.gap > 1 ? "short" : "", here.length ? "milestone" : ""].filter(Boolean).join(" ");
+    const badges = here.map(m => `<span class="ms-badge" tabindex="0" title="${attrEscape(m.text)}">${htmlEscape(m.label)}</span>`).join("");
+    return `<tr${cls ? ` class="${cls}"` : ""}>` + shown.map((c, j) => `<td>${c.get(r)}${j === 0 ? badges : ""}</td>`).join("") + "</tr>";
+  }).join("");
+  const msNote = ms.length
+    ? `<p class="ms-legend"><svg class="swatch" viewBox="0 0 6 18" aria-hidden="true"><line x1="3" y1="0" x2="3" y2="18" class="milestone"/></svg>${ms.map(m => htmlEscape(m.text)).join(" ")}</p>`
+    : "";
 
   document.getElementById("crForecast").innerHTML =
     `<div class="chart-grid${CR.focusChart ? " focused" : ""}">${crRenderCharts(rows, p, band)}</div>
+     ${msNote}
      ${mc ? crUncertaintyPanel(mc, p) : ""}
      ${taxVintageHtml()}
      <div class="table-head">
@@ -5330,7 +5421,7 @@ function crRenderForecast(result, p, mc) {
        <button type="button" id="crCsvBtn">Export CSV</button>
      </div>
      <div class="table-wrap">${`<table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>`}</div>
-     <p class="fine">Rows tinted red are years with a shortfall — spending no account could cover. Home equity sits outside Total savings and is never drawn on unless you set a year to sell. RRSP balances are pre-tax, so compare plans on Total after tax.</p>`;
+     <p class="fine">Rows tinted red are years with a shortfall — spending no account could cover. Home equity sits outside Total savings and is never drawn on unless you set a year to sell. RRSP balances are pre-tax, so compare plans on Total after tax.${ms.length ? " The row marked RRIF is the year the RRSP must be converted; minimum withdrawals start the year after." : ""}</p>`;
 
   document.getElementById("crForecast").querySelectorAll("[data-group]").forEach(btn => {
     btn.addEventListener("click", () => {
@@ -5364,7 +5455,7 @@ function crRenderForecast(result, p, mc) {
       crRunNow();
     });
   });
-  if (CR.focusChart) crWireChartHover(host, rows);
+  if (CR.focusChart) crWireChartHover(host, rows, ms);
 }
 
 /* ---------- reading a value off the expanded chart ----------
@@ -5377,7 +5468,8 @@ function crRenderForecast(result, p, mc) {
    A box that follows the pointer covers the curve it is describing, and one
    that appears on hover moves the whole page a line every time a pointer
    crosses the plot. */
-function crWireChartHover(host, rows) {
+function crWireChartHover(host, rows, ms) {
+  ms = ms || [];
   const spec = CR_CHARTS.find(c => c.id === CR.focusChart);
   const plot = host.querySelector(".chart-plot");
   // All three guards are load-bearing under test/run.js, where every DOM lookup
@@ -5394,7 +5486,8 @@ function crWireChartHover(host, rows) {
     const r = rows[at];                        // never `p` — see CR_CHARTS above
     rule.style.left = `${crXPct(at, rows.length).toFixed(2)}%`;
     out.innerHTML = `<b>${r.year}</b><span>age ${r.ageC}</span>` + spec.series.map(s =>
-      `<span>${htmlEscape(s.label)} <b>$${fmt(s.get(r))}</b></span>`).join("");
+      `<span>${htmlEscape(s.label)} <b>$${fmt(s.get(r))}</b></span>`).join("")
+      + ms.filter(m => m.i === at).map(m => `<span class="ms-note">${htmlEscape(m.text)}</span>`).join("");
   };
   // e.offsetX would be relative to e.target, and on a pointermove the target is
   // whichever <path> happens to be under the cursor rather than the plot. The
@@ -6862,6 +6955,14 @@ const CR_REPORT_CSS = `
   .chart .line { fill: none; stroke-width: 2.2; vector-effect: non-scaling-stroke; }
   .chart .line.ok { stroke: #2f6fed; } .chart .line.bad { stroke: #b3261e; }
   .chart .band { fill: #2f6fed; opacity: .14; stroke: none; }
+  .chart .milestone { stroke: #1d6b52; stroke-width: 1.2; stroke-dasharray: 4 3; vector-effect: non-scaling-stroke; }
+  .ms-flag { position: absolute; transform: translateX(-50%); padding: 0 4px; border-radius: 3px;
+    font-size: 7.5pt; font-weight: 600; color: #fff; background: #1d6b52; white-space: nowrap; }
+  .ms-flag.start { transform: none; } .ms-flag.end { transform: translateX(-100%); }
+  .ms-badge { display: inline-block; margin-left: 4px; padding: 0 3px; border-radius: 2px;
+    font-size: .85em; font-weight: 700; color: #fff; background: #1d6b52; }
+  tr.milestone td { background: #eaf4f0; }
+  tr.milestone td:first-child { box-shadow: inset 2px 0 0 #1d6b52; }
   .yax span { position: absolute; right: 100%; margin-right: 6px; transform: translateY(-50%);
     font-size: 7.5pt; color: #5b6472; white-space: nowrap; }
   .xax span { position: absolute; top: 100%; margin-top: 3px; transform: translateX(-50%);
@@ -6960,8 +7061,9 @@ function crReportColumns(rows, p) {
   return ids.map(id => byId[id]).filter(Boolean);
 }
 
-function crReportChart(result, mc) {
+function crReportChart(result, mc, ms) {
   const { rows, failedYear } = result;
+  ms = ms || [];
   const W = CR_CHART.W, H = CR_CHART.H;
   const band = mc && !mc.stale ? mc : null;
   const top = Math.max(1, ...rows.map(r => r.total), ...(band ? band.p90 : [0]));
@@ -6982,8 +7084,14 @@ function crReportChart(result, mc) {
       <svg viewBox="0 0 ${W} ${CR_CHART.VB}" preserveAspectRatio="none" aria-hidden="true">
         ${grid}
         ${band ? `<path d="${crBandPath(band, rows, top, W, H)}" class="band"/>` : ""}
+        ${crMilestoneSvg(ms, rows.length)}
         <path d="${crPath(rows, r => r.total, top, W, H)}" class="line ${failedYear ? "bad" : "ok"}"/>
       </svg>
+      ${ms.map((m, k) => {
+        const pct = crXPct(m.i, rows.length);
+        const edge = pct > 85 ? " end" : pct < 15 ? " start" : "";
+        return `<span class="ms-flag${edge}" style="left:${pct.toFixed(2)}%;top:${k * 13}px">${htmlEscape(m.label)}</span>`;
+      }).join("")}
       <div class="yax">${yax}</div>
       <div class="xax">${xax}</div>
     </div>`;
@@ -7013,13 +7121,22 @@ function crReportHtml(run, meta) {
   const brief = crReportAssumptions(p).map(([k, v]) =>
     `<div class="kv"><span>${esc(k)}</span><span class="v">${esc(v)}</span></div>`).join("");
 
+  const ms = crMilestones(rows, p);
+  const msAt = new Map();
+  for (const m of ms) msAt.set(m.i, (msAt.get(m.i) || []).concat(m));
   const cols = crReportColumns(rows, p);
   const strong = new Set(["totalAfterTax"]);
   const size = rows.length <= 40 ? "s1" : rows.length <= 58 ? "s2" : "s3";
   const head = cols.map(c => `<th${strong.has(c.id) ? ' class="strong"' : ""}>${esc(c.label)}</th>`).join("");
-  const body = rows.map(r => `<tr${r.gap > 1 ? ' class="short"' : ""}>`
-    + cols.map(c => `<td${strong.has(c.id) ? ' class="strong"' : ""}>${esc(String(c.get(r)))}</td>`).join("")
-    + "</tr>").join("");
+  const body = rows.map((r, i) => {
+    const here = msAt.get(i) || [];
+    const cls = [r.gap > 1 ? "short" : "", here.length ? "milestone" : ""].filter(Boolean).join(" ");
+    const badges = here.map(m => `<span class="ms-badge">${esc(m.label)}</span>`).join("");
+    return `<tr${cls ? ` class="${cls}"` : ""}>`
+      + cols.map((c, j) => `<td${strong.has(c.id) ? ' class="strong"' : ""}>${esc(String(c.get(r)))}${j === 0 ? badges : ""}</td>`).join("")
+      + "</tr>";
+  }).join("");
+  const msLine = ms.length ? ` ${ms.map(m => esc(m.text)).join(" ")}` : "";
 
   const footer = page => `<footer><span>CashRunway · ${plan} · prepared ${esc(meta.printedOn)}</span><span>Page ${page} of 2</span></footer>`;
   const masthead = sub => `<header class="top">
@@ -7040,7 +7157,7 @@ function crReportHtml(run, meta) {
   <h1 class="${tone}">${crAnswerHeadline(result, p1)}</h1>
   <p class="lede">${crAnswerDetail(result, last)}${trials}</p>
   <h2>Total savings, today's dollars</h2>
-  ${crReportChart(result, mc)}
+  ${crReportChart(result, mc, ms)}
   <div class="cols">
     <div><h2>Where it lands</h2>${lands}</div>
     <div><h2>What would change it</h2>${moves}</div>
@@ -7056,7 +7173,7 @@ function crReportHtml(run, meta) {
   <table class="${size}"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>
   <div class="grow"></div>
   <p class="note">All figures are in today's dollars: real, inflation-adjusted, not nominal future amounts.
-    Rows in red are years the accounts could not fund. Tax data: ${esc(meta.ratesAsOf)}.
+    Rows in red are years the accounts could not fund.${msLine} Tax data: ${esc(meta.ratesAsOf)}.
     OAS and GIS amounts: ${esc(meta.gisAsOf)}. CPI reference: ${esc(meta.cpiAsOf)}.</p>
   <p class="note">An approximation of federal and provincial tax and benefits, not tax or financial advice.
     The page's fine print lists what the model leaves out. Worked out in your browser by CashRunway;
