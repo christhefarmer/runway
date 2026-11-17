@@ -753,6 +753,27 @@ input[type=file] { display: none; }
      phone scroll sideways and rubber-band on every swipe. */
   footer { margin-left: -12px; margin-right: -12px; padding-left: 12px; padding-right: 12px; }
 }
+
+/* The Menu → Print notice. A native <dialog>, so Escape and the OK button
+   close it with no script, and showModal() keeps focus inside it. Not
+   `.notice`: that class is the advice/privacy banners above, and sharing it
+   pinned this dialog to the corner and indented its text. margin: auto is
+   what centres a modal dialog. */
+dialog.print-notice {
+  margin: auto;
+  max-width: min(420px, calc(100vw - 32px)); padding: 20px 22px 16px;
+  border: 1px solid var(--line); border-radius: 10px;
+  background: var(--panel); color: var(--ink); font-family: var(--sans);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, .25);
+}
+dialog.print-notice::backdrop { background: rgba(0, 0, 0, .35); }
+dialog.print-notice h2 { margin: 0 0 8px; font-size: 16px; }
+dialog.print-notice p { margin: 0 0 16px; color: var(--ink-2); line-height: 1.45; }
+dialog.print-notice form { display: flex; justify-content: flex-end; margin: 0; }
+dialog.print-notice button {
+  font: inherit; padding: 7px 18px; border: 0; border-radius: 6px;
+  background: var(--accent); color: var(--accent-ink); cursor: pointer;
+}
 </style>
 </head>
 <body>
@@ -999,6 +1020,17 @@ input[type=file] { display: none; }
   </div>
   <div id="crForecast"></div>
 </div>
+
+<!-- Shown after Menu → Print when the report tab opened BEHIND this one.
+     Several browsers open the new tab without switching to it, and the report
+     used to call print() from the background, so the dialog came up over this
+     tab and printed the app instead of the report. The report now waits until
+     its own tab is showing (src/js/77-report.js); this says where it is. -->
+<dialog id="crPrintNotice" class="print-notice">
+  <h2>Your report is open in another tab</h2>
+  <p>The two-page report opened in a new tab named <b>Print report</b>. Switch to that tab and the print dialog opens there, ready to print it or save it as a PDF.</p>
+  <form method="dialog"><button type="submit" id="crPrintNoticeOk" autofocus>OK</button></form>
+</dialog>
 
 <script>
 "use strict";
@@ -6998,7 +7030,7 @@ function crReportHtml(run, meta) {
   return `<!doctype html>
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>${plan} — CashRunway report</title>
+<title>Print report — ${plan}</title>
 <style>${CR_REPORT_CSS}</style></head>
 <body>
 <div class="bar"><span>Two-page report for ${plan}.</span><button type="button" onclick="window.print()">Print</button></div>
@@ -7068,8 +7100,23 @@ function crReportHtml(run, meta) {
   // Run from here rather than on "load": a document written with
   // document.write into about:blank never reliably fires load, and this script
   // is the last thing in the body, so every page above it is already laid out.
+  //
+  // print() only once THIS tab is the one showing. Browsers that open the
+  // report behind the app (Safari among them) otherwise raised the dialog
+  // over the app's tab, which then printed the app: four sheets of form, no
+  // report. Hidden, it waits for the reader to switch here; the app tab says
+  // so in a dialog of its own (crPrintNotice).
+  function go() { fit(); window.print(); }
   fit();
-  setTimeout(function () { fit(); window.print(); }, 250);
+  if (document.visibilityState === "hidden") {
+    document.addEventListener("visibilitychange", function once() {
+      if (document.visibilityState !== "visible") return;
+      document.removeEventListener("visibilitychange", once);
+      setTimeout(go, 250);
+    });
+  } else {
+    setTimeout(go, 250);
+  }
 <\/script>
 </body></html>`;
 }
@@ -7103,7 +7150,17 @@ function crPrintReport() {
   w.document.write(html);
   w.document.close();
   w.focus();
-  status.textContent = "Report opened in a new window.";
+  status.textContent = "Report opened in a new tab named \"Print report\".";
+  // If the report tab did not come to the front, say where it went. The tab
+  // waits to print until it is showing, so without this the reader would be
+  // left on this tab with nothing apparently happening. Where the browser
+  // does switch (Chromium), the report is visible and no notice is needed.
+  setTimeout(() => {
+    let hidden = false;
+    try { hidden = w.closed ? false : w.document.visibilityState === "hidden"; } catch (e) { hidden = false; }
+    const notice = document.getElementById("crPrintNotice");
+    if (hidden && notice && typeof notice.showModal === "function" && !notice.open) notice.showModal();
+  }, 400);
 }
 /* ===== src/js/80-wire.js ===== */
 /* ---------- wiring ---------- */
