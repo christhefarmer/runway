@@ -4,7 +4,7 @@ A Canadian retirement drawdown calculator that runs entirely in your browser.
 Type your own figures into the form and it models the whole thing — year by
 year, out to whatever age you pick — and recomputes the answer as you type.
 
-**Use it here: <https://christhefarmer.github.io/runway/>**
+**Use it here: <https://cashrunway.ca/>**
 
 **Nothing you type ever leaves your browser.** There's no server, no account,
 no analytics, no upload. The page loads no scripts, no fonts and no images
@@ -56,7 +56,7 @@ inputs.
 
 ## How to use it
 
-1. Open <https://christhefarmer.github.io/runway/>, or download `index.html`
+1. Open <https://cashrunway.ca/>, or download `index.html`
    and open it in any modern browser. Chrome, Firefox, Safari and Edge all
    work, online or off.
 2. Fill in the form. There is no Run button: the answer at the top of the
@@ -114,7 +114,7 @@ rather than a link, check it against the published one:
 
 ```
 shasum -a 256 index.html
-curl -sL https://christhefarmer.github.io/runway/index.html | shasum -a 256
+curl -sL https://cashrunway.ca/index.html | shasum -a 256
 ```
 
 If those differ, you do not have the file from here. For a page you type your
