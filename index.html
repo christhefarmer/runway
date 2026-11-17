@@ -779,21 +779,40 @@ dialog.print-notice button {
   background: var(--accent); color: var(--accent-ink); cursor: pointer;
 }
 
-/* ---------- milestones (RRSP -> RRIF) ---------- */
+/* ---------- milestones: key dates (crMilestones in 75-ui.js) ---------- */
 .ms-flag { position: absolute; transform: translateX(-50%); padding: 1px 5px; border-radius: 4px;
   font: 600 10px/1.3 var(--mono); color: var(--accent-ink); background: var(--accent);
   white-space: nowrap; pointer-events: auto; cursor: help; z-index: 1; }
 .ms-flag.start { transform: none; }
 .ms-flag.end { transform: translateX(-100%); }
-.ms-legend { display: flex; gap: 8px; align-items: flex-start; margin: 10px 0 0;
-  font-size: 12px; line-height: 1.45; color: var(--ink-2); text-wrap: pretty; }
-.ms-legend .swatch { flex: none; width: 6px; height: 18px; }
+/* The small cards print the key-date number, not the words: four cards of
+   staggered labels would bury the curves they annotate. */
+.ms-flag.num { min-width: 15px; padding: 0 3px; border-radius: 8px; text-align: center; font-size: 9px; line-height: 15px; }
+.ms-flag.bad, .ms-badge.bad, .key-dates .bad .kd-n { background: var(--bad); color: var(--accent-ink); }
+svg .milestone.bad { stroke: var(--bad); }
+.key-dates-card { margin: 12px 0 0; padding: 12px 14px; background: var(--panel); border: 1px solid var(--line); border-radius: 7px; }
+.key-dates-card h2 { margin: 0 0 8px; font-size: 13px; }
+.key-dates { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.key-dates li { display: grid; grid-template-columns: 20px 118px 1fr; gap: 8px; align-items: baseline;
+  font-size: 12px; line-height: 1.45; color: var(--ink-2); }
+.key-dates .kd-n { display: inline-block; min-width: 18px; border-radius: 9px; text-align: center;
+  font: 600 10px/16px var(--mono); color: var(--accent-ink); background: var(--accent); }
+.key-dates .kd-when { font: 11px var(--mono); color: var(--muted); white-space: nowrap; }
+.key-dates .kd-when b { color: var(--ink); font-weight: 600; margin-right: 4px; }
+.key-dates .bad .kd-what { color: var(--bad); }
+@media (max-width: 600px) {
+  .key-dates li { grid-template-columns: 20px 1fr; }
+  .key-dates .kd-what { grid-column: 2; }
+}
 tbody tr.milestone td:first-child { box-shadow: inset 3px 0 0 var(--accent); }
 tbody tr.milestone { background: color-mix(in srgb, var(--accent) 8%, transparent); }
+tbody tr.milestone.short { background: color-mix(in srgb, var(--bad) 9%, transparent); }
+tbody tr.milestone.short td:first-child { box-shadow: inset 3px 0 0 var(--bad); }
 .ms-badge { display: inline-block; margin-left: 6px; padding: 0 5px; border-radius: 4px;
   font: 600 10px/1.5 var(--mono); color: var(--accent-ink); background: var(--accent);
   vertical-align: 1px; cursor: help; white-space: nowrap; }
 .chart-readout .ms-note { flex-basis: 100%; color: var(--accent); }
+.chart-readout .ms-note.bad { color: var(--bad); }
 </style>
 </head>
 <body>
@@ -5281,8 +5300,8 @@ function crLegendHtml(spec) {
     + `</div>`;
 }
 
-function crChartHtml(spec, rows, mc, focused, ms) {
-  ms = ms || [];
+function crChartHtml(spec, rows, mc, focused, groups) {
+  groups = groups || [];
   const band = spec.band && mc ? mc : null;
   const top = spec.max(rows, band);
   const yWant = focused ? 5 : 3;
@@ -5302,10 +5321,10 @@ function crChartHtml(spec, rows, mc, focused, ms) {
         <svg viewBox="0 0 ${CR_CHART.W} ${CR_CHART.VB}" preserveAspectRatio="none" aria-hidden="true">
           ${crGridHtml(top, yWant)}
           ${band ? `<path d="${crBandPath(band, rows, top, CR_CHART.W, CR_CHART.H)}" class="band"/>` : ""}
-          ${crMilestoneSvg(ms, rows.length)}
+          ${crMilestoneSvg(groups, rows.length)}
           ${paths}
         </svg>
-        ${crMilestoneFlags(ms, rows.length)}
+        ${crMilestoneFlags(groups, !focused)}
         ${focused ? `<div class="crosshair"></div>` : ""}
       </div>
       <div class="x-unit">year<b>age</b></div>
@@ -5319,62 +5338,192 @@ function crRenderCharts(rows, p, mc) {
   // no longer exists would otherwise render nothing at all, turning a renamed
   // series into a blank pane.
   const focus = CR_CHARTS.find(c => c.id === CR.focusChart) || null;
-  const ms = crMilestones(rows, p);
-  return (focus ? [focus] : CR_CHARTS).map(c => crChartHtml(c, rows, mc, !!focus, ms)).join("");
+  // ~6px a character of 10px mono across a ~1270px expanded plot.
+  const groups = crMilestoneGroups(crMilestones(rows, p), rows, focus ? 0.5 : 0);
+  return (focus ? [focus] : CR_CHARTS).map(c => crChartHtml(c, rows, mc, !!focus, groups)).join("");
 }
 
-/* ---------- milestones: the RRSP becomes a RRIF ----------
-   The year each person turns 71. By December 31 of that year an RRSP has to
-   become a RRIF (or an annuity, or be cashed out); contributions end the same
-   day, and the minimum withdrawals start the following year. The model already
-   does all of that — the last contribution at 71 and the forced minimum from 72
-   in 50-model.js — but nothing on the Forecast said WHEN, so a plan's income
-   stepped up at 72 with no visible reason.
+/* ---------- milestones: the key dates in a plan ----------
+   The years where something about the plan changes on its own: work stops,
+   CPP or OAS starts, OAS steps up after 75, the RRSP has to become a RRIF, a
+   spouse's death in the survivor scenario, the mortgage is paid off, the home
+   is sold, and the first year the money runs short. The model already does
+   every one of these; nothing on the Forecast said WHEN, so curves stepped
+   up or down with no visible reason.
 
-   Derived from the rows the model returned rather than recomputed from the
-   ages, so a marker can only sit on a year the projection actually contains.
-   Only drawn for someone who holds an RRSP that year: a person with nothing to
-   convert has no milestone, and one who is already past 71 when the plan
-   starts converted before it, so there is nothing to mark. Pure, so the
-   charts, the table, the hover readout and the printed report all read one
-   answer, and test/run.js can check it. */
+   Each is read from the same condition 50-model.js uses (work while
+   age < workUntilAge, CPP from age >= cppStart, OAS +10% from age 76, a RRIF
+   minimum from 72, alive while age < deathAge, a mortgage payment while
+   year < payoffYear, a sale from sellHomeYear) and is only placed on a year
+   the projection actually contains. Nothing is marked that the plan does not
+   do: no CPP flag for a $0 CPP, no RRIF flag once the RRSP is spent, no
+   retirement flag for someone already retired when the plan starts.
+
+   Pure, so the charts, the table, the hover readout, the key-dates list and
+   the printed report all read one answer, and test/run.js can check it. */
 function crMilestones(rows, p) {
-  const people = [{ name: p.p1Name || "Person 1", age: r => r.ageC, rrsp: r => r.rrspC }];
-  if (p.includeP2) people.push({ name: p.p2Name || "Person 2", age: r => r.ageK, rrsp: r => r.rrspK });
   const out = [];
+  if (!rows.length) return out;
+  const both = !!p.includeP2;
+  // `text` is the full sentence (the Forecast list, tooltips, the readout);
+  // `brief` is the one-line form the printed report's list uses.
+  const add = (i, kind, who, short, text, tone, brief) => {
+    if (i < 0) return;
+    out.push({ i, year: rows[i].year, kind, who, short, tone: tone || "",
+      label: both && who ? `${short} · ${who}` : short, text, brief: brief || text });
+  };
+  const yearIdx = y => rows.findIndex(r => r.year === y);
+  const inHousehold = (k, y) => k === "C" || (both
+    && (p.p2JoinYear === null || p.p2JoinYear === undefined || y >= p.p2JoinYear)
+    && (p.p2LeaveYear === null || p.p2LeaveYear === undefined || y < p.p2LeaveYear));
+  const people = [{ k: "C", n: "P1", name: p.p1Name || "Person 1", age: r => r.ageC, rrsp: r => r.rrspC }];
+  if (both) people.push({ k: "K", n: "P2", name: p.p2Name || "Person 2", age: r => r.ageK, rrsp: r => r.rrspK });
+
   for (const who of people) {
-    const i = rows.findIndex(r => who.age(r) === 71);
-    if (i < 0) continue;
-    // The balance going into that year, or what is left at its end: either
-    // means there was an RRSP to convert.
-    const held = Math.max(who.rrsp(rows[i]), i ? who.rrsp(rows[i - 1]) : 0);
-    if (!(held >= 1)) continue;
-    const year = rows[i].year;
-    out.push({
-      i, year, who: who.name,
-      label: people.length > 1 ? `RRIF · ${who.name}` : "RRIF",
-      text: `${who.name} turns 71 in ${year}: the RRSP must be converted to a RRIF by December 31. `
-        + `RRSP contributions stop then, and minimum withdrawals start in ${year + 1}.`,
-    });
+    const deathAge = who.n === "P1" ? p.deathAgeP1 : p.deathAgeP2;
+    const alive = r => deathAge === null || deathAge === undefined || who.age(r) < deathAge;
+    // The first year this person reaches `age`, provided the plan starts
+    // before it (otherwise it already happened) and they are alive and in the
+    // household that year.
+    const firstAt = age => {
+      if (!(rows[0] && who.age(rows[0]) < age)) return -1;
+      const i = rows.findIndex(r => who.age(r) === age);
+      return i >= 0 && alive(rows[i]) && inHousehold(who.k, rows[i].year) ? i : -1;
+    };
+    const workAge = who.n === "P1" ? p.workUntilAgeP1 : p.workUntilAgeP2;
+    const work = Number(who.n === "P1" ? p.workIncomeP1 : p.workIncomeP2) || 0;
+    if (work > 0) {
+      const i = firstAt(workAge);
+      if (i >= 0) add(i, "retire", who.name, "Retire",
+        `${who.name} stops working at ${workAge}; $${fmt(work)} a year of earnings ends.`, "",
+        `${who.name} retires`);
+    }
+    const cppAge = who.n === "P1" ? p.cppStartP1 : p.cppStartP2;
+    const cppTable = who.n === "P1" ? p.cppP1Monthly : p.cppP2Monthly;
+    const cpp = cppTable ? Number(cppTable[cppAge]) || 0 : 0;
+    if (cpp > 0) {
+      const i = firstAt(cppAge);
+      if (i >= 0) add(i, "cpp", who.name, "CPP",
+        `${who.name}'s CPP starts at ${cppAge}: $${fmt(cpp)} a month.`, "",
+        `${who.name}'s CPP starts ($${fmt(cpp)}/mo)`);
+    }
+    if (p.oasMonthly > 0) {
+      const i = firstAt(p.oasStart);
+      if (i >= 0) add(i, "oas", who.name, "OAS",
+        `${who.name}'s OAS starts at ${p.oasStart}.`, "", `${who.name}'s OAS starts`);
+      // The model applies the legislated 10% from the first full year after
+      // the 75th birthday, which its rows call age 76.
+      const j = p.oasStart <= 76 ? firstAt(76) : -1;
+      if (j >= 0) add(j, "oas75", who.name, "OAS +10%",
+        `${who.name}'s OAS rises 10% after their 75th birthday, applied here from ${rows[j].year}.`, "",
+        `${who.name}'s OAS +10% (after 75)`);
+    }
+    // RRIF: the year they turn 71, if there is an RRSP to convert.
+    {
+      const i = rows.findIndex(r => who.age(r) === 71);
+      if (i >= 0 && alive(rows[i])) {
+        const held = Math.max(who.rrsp(rows[i]), i ? who.rrsp(rows[i - 1]) : 0);
+        if (held >= 1) add(i, "rrif", who.name, "RRIF",
+          `${who.name} turns 71 in ${rows[i].year}: the RRSP must be converted to a RRIF by December 31. `
+          + `RRSP contributions stop then, and minimum withdrawals start in ${rows[i].year + 1}.`, "",
+          `${who.name}'s RRSP must become a RRIF (minimums from ${rows[i].year + 1})`);
+      }
+    }
+    if (deathAge !== null && deathAge !== undefined && both) {
+      const i = rows.findIndex(r => who.age(r) === deathAge);
+      if (i > 0 && inHousehold(who.k, rows[i].year)) add(i, "death", who.name, "Survivor",
+        `The survivor scenario: ${who.name}'s death is modelled at ${deathAge}. From ${rows[i].year} the plan is for one person, with the survivor share of spending and CPP.`, "",
+        `Survivor scenario: ${who.name}'s death at ${deathAge}`);
+    }
   }
-  return out;
+
+  // Household events, named by nobody.
+  if (p.housingStatus === "own" && p.mortgagePayoffYear > rows[0].year
+      && (Number(p.mortgageBalance) > 0 || Number(p.mortgagePaymentAmount) > 0)
+      && !(p.sellHomeYear !== null && p.sellHomeYear !== undefined && p.sellHomeYear <= p.mortgagePayoffYear)) {
+    add(yearIdx(p.mortgagePayoffYear), "mortgage", null, "Mortgage paid",
+      `The mortgage is paid off: no more payments from ${p.mortgagePayoffYear}.`, "", "Mortgage paid off");
+  }
+  if (p.housingStatus === "own" && p.sellHomeYear !== null && p.sellHomeYear !== undefined
+      && p.sellHomeYear > rows[0].year - 1) {
+    const i = yearIdx(p.sellHomeYear);
+    if (i >= 0) add(i, "sale", null, "Home sold",
+      `The home is sold in ${p.sellHomeYear}` + (rows[i].homeSaleProceeds >= 1
+        ? `; $${fmt(rows[i].homeSaleProceeds)} lands in the accounts.` : "."), "",
+      "Home sold" + (rows[i].homeSaleProceeds >= 1 ? ` ($${fmt(rows[i].homeSaleProceeds)} to the accounts)` : ""));
+  }
+  // The same test simulate() uses for failedYear.
+  const short = rows.findIndex(r => !(r.gap <= 0.5));
+  if (short >= 0) add(short, "short", null, "Short",
+    `The money runs short in ${rows[short].year}: $${fmt(rows[short].gap)} of that year's spending is not covered.`, "bad",
+    `Money runs short ($${fmt(rows[short].gap)} uncovered)`);
+
+  const order = ["short", "retire", "cpp", "oas", "oas75", "rrif", "death", "mortgage", "sale"];
+  return out.sort((a, b) => a.i - b.i || order.indexOf(a.kind) - order.indexOf(b.kind));
+}
+
+/* One entry per year that has milestones, numbered in order, with a stagger
+   level so flags that would overlap move down a line. The numbers are what
+   the small charts print and what the key-dates list is keyed by; the labels
+   are what the expanded chart and the report print.
+
+   A year's label groups its events by person ("Person 2: Retire, CPP, OAS")
+   rather than repeating the name on each, and the stagger is worked out from
+   each label's own width: `charPct` is roughly one character's width as a
+   percentage of the plot, which the caller knows and this function cannot.
+   Pass 0 for the small cards, where the flag is just the number. */
+function crMilestoneGroups(ms, rows, charPct) {
+  const byI = new Map();
+  for (const m of ms) byI.set(m.i, (byI.get(m.i) || []).concat(m));
+  const n = rows.length;
+  const levels = [];   // right edge (in %) of the last flag on each line
+  return [...byI.entries()].sort((a, b) => a[0] - b[0]).map(([i, items], k) => {
+    const pct = crXPct(i, n);
+    const byWho = new Map();
+    for (const m of items) byWho.set(m.who, (byWho.get(m.who) || []).concat(m.short));
+    const named = items.some(m => m.label !== m.short);
+    const label = [...byWho.entries()].map(([who, shorts]) =>
+      (named && who ? `${who}: ` : "") + shorts.join(", ")).join(" · ");
+    const align = charPct ? (pct > 85 ? "end" : pct < 15 ? "start" : "") : "";
+    const w = charPct ? (label.length + 2) * charPct : 3.2;
+    const left = align === "start" ? pct : align === "end" ? pct - w : pct - w / 2;
+    let level = levels.findIndex(right => left > right + 0.6);
+    if (level < 0) level = levels.length;
+    levels[level] = left + w;
+    return { num: k + 1, i, pct, level, align, items, year: rows[i].year, label,
+      tone: items.some(m => m.tone === "bad") ? "bad" : "",
+      text: items.map(m => m.text).join(" ") };
+  });
 }
 
 /* The marker on a chart: a dashed rule in the svg, at the same x the paths
-   use (crXPos through crXPct), and its label as HTML beside it rather than
-   <text> inside the stretched svg — the same reason the axis labels are HTML. */
-function crMilestoneSvg(ms, n) {
-  return ms.map(m => {
-    const x = crXPos(m.i, n, CR_CHART.W).toFixed(1);
-    return `<line x1="${x}" y1="0" x2="${x}" y2="${CR_CHART.H}" class="milestone"/>`;
+   use (crXPos), and its flag as HTML beside it rather than <text> inside the
+   stretched svg — the same reason the axis labels are HTML. */
+function crMilestoneSvg(groups, n) {
+  return groups.map(g => {
+    const x = crXPos(g.i, n, CR_CHART.W).toFixed(1);
+    return `<line x1="${x}" y1="0" x2="${x}" y2="${CR_CHART.H}" class="milestone${g.tone ? " " + g.tone : ""}"/>`;
   }).join("");
 }
-function crMilestoneFlags(ms, n) {
-  return ms.map((m, k) => {
-    const pct = crXPct(m.i, n);
-    const edge = pct > 85 ? " end" : pct < 15 ? " start" : "";
-    return `<span class="ms-flag${edge}" style="left:${pct.toFixed(2)}%;top:${2 + k * 15}px" title="${attrEscape(m.text)}">${htmlEscape(m.label)}</span>`;
+function crMilestoneFlags(groups, compact, rowPx) {
+  return groups.map(g => {
+    const edge = compact || !g.align ? "" : " " + g.align;
+    return `<span class="ms-flag${compact ? " num" : ""}${edge}${g.tone ? " " + g.tone : ""}" `
+      + `style="left:${g.pct.toFixed(2)}%;top:${2 + g.level * (rowPx || 15)}px" title="${attrEscape(g.text)}">`
+      + `${compact ? g.num : htmlEscape(g.label)}</span>`;
   }).join("");
+}
+// The numbered list under the charts and on page one of the report. Ages are
+// both people's for a couple, so a year is placeable on either timeline.
+function crKeyDatesHtml(groups, rows, p, brief) {
+  if (!groups.length) return "";
+  return `<ol class="key-dates">` + groups.map(g => {
+    const r = rows[g.i];
+    const ages = p.includeP2 ? `${r.ageC}/${r.ageK}` : `${r.ageC}`;
+    return `<li${g.tone ? ` class="${g.tone}"` : ""}><span class="kd-n">${g.num}</span>`
+      + `<span class="kd-when"><b>${g.year}</b> age ${ages}</span>`
+      + `<span class="kd-what">${brief ? g.items.map(m => htmlEscape(m.brief)).join("; ") : g.items.map(m => htmlEscape(m.text)).join(" ")}</span></li>`;
+  }).join("") + `</ol>`;
 }
 
 /* ---------- the forecast pane ---------- */
@@ -5396,16 +5545,17 @@ function crRenderForecast(result, p, mc) {
   // A milestone row carries a badge in its first cell and a rule down its
   // left edge, so the year stands out in the table as it does on the charts.
   const ms = crMilestones(rows, p);
+  const groups = crMilestoneGroups(ms, rows, 0);
   const msAt = new Map();
   for (const m of ms) msAt.set(m.i, (msAt.get(m.i) || []).concat(m));
   const body = rows.map((r, i) => {
     const here = msAt.get(i) || [];
     const cls = [r.gap > 1 ? "short" : "", here.length ? "milestone" : ""].filter(Boolean).join(" ");
-    const badges = here.map(m => `<span class="ms-badge" tabindex="0" title="${attrEscape(m.text)}">${htmlEscape(m.label)}</span>`).join("");
+    const badges = here.map(m => `<span class="ms-badge${m.tone ? " " + m.tone : ""}" tabindex="0" title="${attrEscape(m.text)}">${htmlEscape(m.label)}</span>`).join("");
     return `<tr${cls ? ` class="${cls}"` : ""}>` + shown.map((c, j) => `<td>${c.get(r)}${j === 0 ? badges : ""}</td>`).join("") + "</tr>";
   }).join("");
-  const msNote = ms.length
-    ? `<p class="ms-legend"><svg class="swatch" viewBox="0 0 6 18" aria-hidden="true"><line x1="3" y1="0" x2="3" y2="18" class="milestone"/></svg>${ms.map(m => htmlEscape(m.text)).join(" ")}</p>`
+  const msNote = groups.length
+    ? `<section class="key-dates-card"><h2>Key dates</h2>${crKeyDatesHtml(groups, rows, p)}</section>`
     : "";
 
   document.getElementById("crForecast").innerHTML =
@@ -5421,7 +5571,7 @@ function crRenderForecast(result, p, mc) {
        <button type="button" id="crCsvBtn">Export CSV</button>
      </div>
      <div class="table-wrap">${`<table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>`}</div>
-     <p class="fine">Rows tinted red are years with a shortfall — spending no account could cover. Home equity sits outside Total savings and is never drawn on unless you set a year to sell. RRSP balances are pre-tax, so compare plans on Total after tax.${ms.length ? " The row marked RRIF is the year the RRSP must be converted; minimum withdrawals start the year after." : ""}</p>`;
+     <p class="fine">Rows tinted red are years with a shortfall — spending no account could cover. Home equity sits outside Total savings and is never drawn on unless you set a year to sell. RRSP balances are pre-tax, so compare plans on Total after tax.${ms.length ? " Badged rows are the key dates listed under the charts; hover a badge for what happens that year." : ""}</p>`;
 
   document.getElementById("crForecast").querySelectorAll("[data-group]").forEach(btn => {
     btn.addEventListener("click", () => {
@@ -5487,7 +5637,7 @@ function crWireChartHover(host, rows, ms) {
     rule.style.left = `${crXPct(at, rows.length).toFixed(2)}%`;
     out.innerHTML = `<b>${r.year}</b><span>age ${r.ageC}</span>` + spec.series.map(s =>
       `<span>${htmlEscape(s.label)} <b>$${fmt(s.get(r))}</b></span>`).join("")
-      + ms.filter(m => m.i === at).map(m => `<span class="ms-note">${htmlEscape(m.text)}</span>`).join("");
+      + ms.filter(m => m.i === at).map(m => `<span class="ms-note${m.tone ? " " + m.tone : ""}">${htmlEscape(m.text)}</span>`).join("");
   };
   // e.offsetX would be relative to e.target, and on a pointermove the target is
   // whichever <path> happens to be under the cursor rather than the plot. The
@@ -6959,6 +7109,17 @@ const CR_REPORT_CSS = `
   .ms-flag { position: absolute; transform: translateX(-50%); padding: 0 4px; border-radius: 3px;
     font-size: 7.5pt; font-weight: 600; color: #fff; background: #1d6b52; white-space: nowrap; }
   .ms-flag.start { transform: none; } .ms-flag.end { transform: translateX(-100%); }
+  .ms-flag.bad, .ms-badge.bad { background: #b3261e; }
+  .ms-flag.num { min-width: 4mm; padding: 0 1mm; border-radius: 2mm; text-align: center; font-size: 6.5pt; line-height: 1.5; }
+  .chart .milestone.bad { stroke: #b3261e; }
+  .key-dates { list-style: none; margin: 0; padding: 0; columns: 2; column-gap: 9mm; font-size: 8.5pt; }
+  .key-dates li { display: grid; grid-template-columns: 5mm 22mm 1fr; gap: 2mm; align-items: baseline;
+    break-inside: avoid; padding: 1.2px 0; line-height: 1.3; }
+  .key-dates .kd-n { display: inline-block; min-width: 4mm; border-radius: 2mm; text-align: center;
+    font-size: 7pt; font-weight: 700; line-height: 1.5; color: #fff; background: #1d6b52; }
+  .key-dates .bad .kd-n { background: #b3261e; } .key-dates .bad .kd-what { color: #b3261e; }
+  .key-dates .kd-when { color: #5b6472; white-space: nowrap; font-size: 8pt; }
+  .key-dates .kd-when b { color: #1b1f27; margin-right: 2px; }
   .ms-badge { display: inline-block; margin-left: 4px; padding: 0 3px; border-radius: 2px;
     font-size: .85em; font-weight: 700; color: #fff; background: #1d6b52; }
   tr.milestone td { background: #eaf4f0; }
@@ -7061,9 +7222,9 @@ function crReportColumns(rows, p) {
   return ids.map(id => byId[id]).filter(Boolean);
 }
 
-function crReportChart(result, mc, ms) {
+function crReportChart(result, mc, groups) {
   const { rows, failedYear } = result;
-  ms = ms || [];
+  groups = groups || [];
   const W = CR_CHART.W, H = CR_CHART.H;
   const band = mc && !mc.stale ? mc : null;
   const top = Math.max(1, ...rows.map(r => r.total), ...(band ? band.p90 : [0]));
@@ -7084,14 +7245,10 @@ function crReportChart(result, mc, ms) {
       <svg viewBox="0 0 ${W} ${CR_CHART.VB}" preserveAspectRatio="none" aria-hidden="true">
         ${grid}
         ${band ? `<path d="${crBandPath(band, rows, top, W, H)}" class="band"/>` : ""}
-        ${crMilestoneSvg(ms, rows.length)}
+        ${crMilestoneSvg(groups, rows.length)}
         <path d="${crPath(rows, r => r.total, top, W, H)}" class="line ${failedYear ? "bad" : "ok"}"/>
       </svg>
-      ${ms.map((m, k) => {
-        const pct = crXPct(m.i, rows.length);
-        const edge = pct > 85 ? " end" : pct < 15 ? " start" : "";
-        return `<span class="ms-flag${edge}" style="left:${pct.toFixed(2)}%;top:${k * 13}px">${htmlEscape(m.label)}</span>`;
-      }).join("")}
+      ${crMilestoneFlags(groups, true, 13)}
       <div class="yax">${yax}</div>
       <div class="xax">${xax}</div>
     </div>`;
@@ -7122,6 +7279,10 @@ function crReportHtml(run, meta) {
     `<div class="kv"><span>${esc(k)}</span><span class="v">${esc(v)}</span></div>`).join("");
 
   const ms = crMilestones(rows, p);
+  // Numbered on the chart, like the Forecast's small cards: the Key dates
+  // list right under it says what each number is, and labels staggered over
+  // a printed chart cost it the height it needs.
+  const groups = crMilestoneGroups(ms, rows, 0);
   const msAt = new Map();
   for (const m of ms) msAt.set(m.i, (msAt.get(m.i) || []).concat(m));
   const cols = crReportColumns(rows, p);
@@ -7131,12 +7292,12 @@ function crReportHtml(run, meta) {
   const body = rows.map((r, i) => {
     const here = msAt.get(i) || [];
     const cls = [r.gap > 1 ? "short" : "", here.length ? "milestone" : ""].filter(Boolean).join(" ");
-    const badges = here.map(m => `<span class="ms-badge">${esc(m.label)}</span>`).join("");
+    const badges = here.map(m => `<span class="ms-badge${m.tone ? " " + m.tone : ""}">${esc(m.label)}</span>`).join("");
     return `<tr${cls ? ` class="${cls}"` : ""}>`
       + cols.map((c, j) => `<td${strong.has(c.id) ? ' class="strong"' : ""}>${esc(String(c.get(r)))}${j === 0 ? badges : ""}</td>`).join("")
       + "</tr>";
   }).join("");
-  const msLine = ms.length ? ` ${ms.map(m => esc(m.text)).join(" ")}` : "";
+  const msLine = ms.length ? " Badged rows are the key dates listed on page 1." : "";
 
   const footer = page => `<footer><span>CashRunway · ${plan} · prepared ${esc(meta.printedOn)}</span><span>Page ${page} of 2</span></footer>`;
   const masthead = sub => `<header class="top">
@@ -7157,7 +7318,8 @@ function crReportHtml(run, meta) {
   <h1 class="${tone}">${crAnswerHeadline(result, p1)}</h1>
   <p class="lede">${crAnswerDetail(result, last)}${trials}</p>
   <h2>Total savings, today's dollars</h2>
-  ${crReportChart(result, mc, ms)}
+  ${crReportChart(result, mc, groups)}
+  ${groups.length ? `<h2>Key dates</h2>${crKeyDatesHtml(groups, rows, p, true)}` : ""}
   <div class="cols">
     <div><h2>Where it lands</h2>${lands}</div>
     <div><h2>What would change it</h2>${moves}</div>
@@ -7205,8 +7367,12 @@ function crReportHtml(run, meta) {
     for (var i = 0; i < pages.length; i++) {
       var page = pages[i], table = page.querySelector("table"), chart = page.querySelector(".chart");
       // Page one gives up chart height first, page two table type size.
-      var mm = 56, size = 8.5;
-      while (chart && used(page) > FIT_PX && mm > 34) { mm -= 1; chart.style.height = mm + "mm"; }
+      var mm = 56, size = 8.5, zoom = 1;
+      while (chart && used(page) > FIT_PX && mm > 30) { mm -= 1; chart.style.height = mm + "mm"; }
+      // A plan with many key dates can still overrun page one once the chart
+      // is as short as it should get; scale that page as a last resort rather
+      // than let it spill onto a third sheet.
+      while (!table && used(page) > FIT_PX && zoom > 0.8) { zoom -= 0.02; page.style.zoom = zoom; }
       while (table && used(page) > FIT_PX && size > 4) {
         size -= 0.25;
         table.style.fontSize = size + "pt";
