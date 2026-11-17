@@ -6774,8 +6774,19 @@ function crWireCloud() {
    fetches nothing and works from file:// with the network off. Everything it
    needs (styles, the chart, the print call) is inside the string. */
 
-// Pages are sized for the smaller of Letter and A4 after 12mm margins, so the
-// same two pages fit whichever paper the print dialog is set to.
+// US Letter, 216 x 279mm. The pages used to be fixed 250mm boxes, which is
+// two pages only when the print dialog's printable area is at least 250mm
+// tall. Chromium hides the difference by clipping, but an engine that splits
+// an overlong box across sheets (Safari's, with its own margins and header
+// line) printed every page as two: a two-page report on four sheets.
+//
+// So nothing here depends on the dialog's margins any more. In print a page
+// is as tall as its content, and fit() below holds that content to
+// CR_REPORT_FIT_MM: 215mm, inside Letter's 279mm even with a full inch top
+// and bottom plus a header and footer line. Width is fluid for the same
+// reason. The 0.5in @page margin is a request, not something the fit relies
+// on. On screen each page is drawn as a Letter sheet, for the preview.
+const CR_REPORT_FIT_MM = 215;
 const CR_REPORT_CSS = `
   * { box-sizing: border-box; }
   html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
@@ -6785,19 +6796,21 @@ const CR_REPORT_CSS = `
     justify-content: center; padding: 10px 16px; background: #1b1f27; color: #fff; font-size: 10pt; }
   .bar button { font: inherit; padding: 6px 14px; border: 0; border-radius: 6px;
     background: #2f6fed; color: #fff; cursor: pointer; }
-  .page { width: 186mm; height: 250mm; margin: 16px auto; padding: 0; background: #fff;
-    display: flex; flex-direction: column; overflow: hidden;
-    box-shadow: 0 0 0 12mm #fff, 0 2px 14px 12mm rgba(0,0,0,.08); }
+  .page { width: 190mm; height: 254mm; margin: 16px auto; padding: 0; background: #fff;
+    display: flex; flex-direction: column;
+    box-shadow: 0 0 0 12.7mm #fff, 0 2px 14px 12.7mm rgba(0,0,0,.08); }
   .page + .page { margin-top: 40mm; }
-  @page { margin: 12mm; }
+  @page { size: letter; margin: 0.5in; }
   @media print {
-    body { background: #fff; }
+    html, body { background: #fff; height: auto; }
     .bar { display: none; }
-    .page { margin: 0; box-shadow: none; break-after: page; }
+    .page { width: auto; height: auto; margin: 0; box-shadow: none;
+      break-after: page; page-break-after: always; break-inside: avoid; page-break-inside: avoid; }
     .page + .page { margin-top: 0; }
+    .grow { display: none; }
     /* last-of-type, not last-child: the trailing script element is the body's last
        child, and a break after the second page printed a blank third one. */
-    .page:last-of-type { break-after: auto; }
+    .page:last-of-type { break-after: auto; page-break-after: auto; }
   }
   header.top { display: flex; justify-content: space-between; align-items: flex-end;
     border-bottom: 2px solid #1b1f27; padding-bottom: 6px; margin-bottom: 10px; }
@@ -6810,7 +6823,7 @@ const CR_REPORT_CSS = `
   .lede { margin: 0 0 10px; color: #333a45; }
   h2 { font-size: 10.5pt; text-transform: uppercase; letter-spacing: .06em; color: #5b6472;
     margin: 12px 0 5px; border-bottom: 1px solid #d7dbe2; padding-bottom: 3px; }
-  .chart { position: relative; height: 60mm; margin: 2px 0 34px 34px; }
+  .chart { position: relative; height: 56mm; margin: 2px 0 32px 34px; }
   .chart svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
   .chart .grid { stroke: #e3e6eb; stroke-width: 1; vector-effect: non-scaling-stroke; }
   .chart .axis { stroke: #9aa2ae; stroke-width: 1; vector-effect: non-scaling-stroke; }
@@ -6842,7 +6855,12 @@ const CR_REPORT_CSS = `
   tr.short td { color: #b3261e; background: #fdf0ef; }
   td.strong, th.strong { font-weight: 700; }
   table.s1 { font-size: 8.5pt; } table.s2 { font-size: 7.5pt; line-height: 1.25; }
-  table.s3 { font-size: 6.3pt; line-height: 1.15; } table.s3 td { padding: .3px 3px; }
+  table.s3 { font-size: 6.3pt; line-height: 1.15; }
+  /* Past 58 rows a 1px rule under every row costs a centimetre or more of
+     page; stripes separate the rows for free. */
+  table.s3 td { padding: .3px 3px; border-bottom: 0; }
+  table.s3 tbody tr:nth-child(even) td { background: #f4f6f8; }
+  table.s3 tbody tr.short td { background: #fdf0ef; }
 `;
 
 // The plan in brief: what a reader would need to recognise the household on
@@ -7014,6 +7032,7 @@ function crReportHtml(run, meta) {
   ${footer(2)}
 </section>
 <script>
+  var CR_REPORT_FIT_MM = ${CR_REPORT_FIT_MM};
   // (The closing tag below is escaped with a backslash because this whole
   // string sits inside the page's own inline script, which a literal one
   // would end. Never spell that tag out in this comment either: it is part of
@@ -7023,12 +7042,23 @@ function crReportHtml(run, meta) {
   // every page fits; two pages is the promise, and a third page holding the
   // last few years would be the table cut in half. Then a beat for layout to
   // settle before the dialog snapshots it.
+  var FIT_PX = CR_REPORT_FIT_MM * 96 / 25.4;
+  // The content's own height: header to footer, leaving out the spacer that
+  // pins the footer to the bottom of the on-screen sheet. That is what prints.
+  function used(page) {
+    var top = page.getBoundingClientRect().top;
+    var foot = page.querySelector("footer").getBoundingClientRect().bottom;
+    var grow = page.querySelector(".grow");
+    return foot - top - (grow ? grow.getBoundingClientRect().height : 0);
+  }
   function fit() {
     var pages = document.querySelectorAll(".page");
     for (var i = 0; i < pages.length; i++) {
-      var page = pages[i], table = page.querySelector("table"), size = 8.5;
-      if (!table) continue;
-      while (page.scrollHeight > page.clientHeight + 1 && size > 4) {
+      var page = pages[i], table = page.querySelector("table"), chart = page.querySelector(".chart");
+      // Page one gives up chart height first, page two table type size.
+      var mm = 56, size = 8.5;
+      while (chart && used(page) > FIT_PX && mm > 34) { mm -= 1; chart.style.height = mm + "mm"; }
+      while (table && used(page) > FIT_PX && size > 4) {
         size -= 0.25;
         table.style.fontSize = size + "pt";
         table.style.lineHeight = "1.1";
