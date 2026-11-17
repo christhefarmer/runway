@@ -1,8 +1,8 @@
 # Runway — Does the money last?
 
 A Canadian retirement drawdown calculator that runs entirely in your browser.
-Answer seven questions for a first number, or open the full plan and model the
-whole thing — year by year, out to whatever age you pick.
+Type your own figures into the form and it models the whole thing — year by
+year, out to whatever age you pick — and recomputes the answer as you type.
 
 **Use it here: <https://christhefarmer.github.io/runway/>**
 
@@ -21,12 +21,6 @@ inputs.
 
 ## What it does
 
-- **Seven questions to a first answer** — age, province, RRSP/RRIF, TFSA,
-  other savings, annual spend, and rent or mortgage. Spending and housing are
-  asked separately because the model treats them separately and adds housing
-  on top; a single all-in figure would be counted twice the moment you opened
-  the full plan and entered your real rent. Everything it had to assume is
-  listed back to you, and opening the full plan carries your answers over.
 - Models one or two people, with a second person who can be left out, join
   partway through, or leave partway through (with a chosen share of joint
   accounts staying behind).
@@ -35,6 +29,8 @@ inputs.
   optional RDSP.
 - Applies CPP, OAS and mandatory RRIF minimums at the right ages, and models
   the **OAS recovery tax** (the clawback) per person rather than per household.
+- Pays the **Guaranteed Income Supplement** where you qualify, on last year's
+  income, from the current quarter's published tables.
 - Estimates income tax with real federal and provincial brackets for all 13
   provinces and territories. The tax year it was built against is shown above
   every result.
@@ -51,42 +47,48 @@ inputs.
   and is never drawn on to cover a shortfall.
 - Handles a mid-plan province move, a chosen death age for either person with
   a survivor-spending adjustment, and one-time inheritances.
-- Monte Carlo mode reruns the plan hundreds or thousands of times with
-  randomized investment returns, so you see a range instead of one optimistic
-  line.
+- An **Uncertainty** switch reruns the plan hundreds or thousands of times
+  with randomized investment returns and shades the range over the same
+  projection, so you see a spread instead of one optimistic line.
+- **Menu → Print** opens a two-page report of the plan: the answer, the
+  savings curve and what would change it on page one, the year-by-year table
+  on page two. Print it or save it as a PDF.
 
 ## How to use it
 
 1. Open <https://christhefarmer.github.io/runway/>, or download `index.html`
    and open it in any modern browser. Chrome, Firefox, Safari and Edge all
    work, online or off.
-2. Answer the seven questions and press **Does the money last?** for a first
-   number, then **Open the full plan** to refine it. Nothing is retyped.
-3. In the full plan, **the defaults are placeholders, not real or typical
-   numbers** — replace every field with your own before trusting the output.
-4. Hover or tab to any **?** for an explanation. Every heading in the results
+2. Fill in the form. There is no Run button: the answer at the top of the
+   window recomputes as you type. **The defaults are placeholders, not real
+   or typical numbers** — replace every field with your own before trusting
+   the output.
+3. Hover or tab to any **?** for an explanation. Every heading in the results
    table has one too.
-5. Not sure what it can do? Pick something from **Try an example**. Each one
-   fills in a whole plan and runs it — a couple where one partner dies partway
+4. Not sure what it can do? Pick a worked example from the **Plan** dropdown
+   at the top right. Each one fills in a whole plan and runs it — a couple where one partner dies partway
    through, a household that sells up and moves province, an RDSP drawn early
    enough to trigger the repayment rule. They are worked examples, not
    recommendations.
-6. Use **Save my numbers** / **Load my numbers** to export your inputs to a
-   JSON file and reload them later. This is the reliable way to keep them; the
-   browser also auto-saves locally, but clearing browser data wipes that.
-7. Change one assumption at a time and re-run. Whatever moves the result most
+5. Every file action lives in **Menu** at the top right: **Save** keeps a
+   plan in this browser, **Export** writes it to a plain-text file and
+   **Import** reads one back, **Copy**/**Paste** move a plan as text, and
+   **Print** makes the two-page report. A file is the reliable way to keep
+   your numbers; the browser also auto-saves, but clearing browser data
+   wipes that.
+6. Change one assumption at a time and re-run. Whatever moves the result most
    is what's worth attention in real life — usually spending first, then how
    long you work, then investment returns.
-8. Once a result looks good, stress-test it: rerun with returns about 1% lower
+7. Once a result looks good, stress-test it: rerun with returns about 1% lower
    and spending about 10% higher. If it still holds, that's a more trustworthy
    answer than the first pass.
 
 ## What this is not
 
 - **Not tax advice or a tax return.** Tax is a graduated approximation
-  (federal and provincial brackets and basic personal amounts), not what the
-  Canada Revenue Agency would actually calculate. Surtaxes, most credits and
-  some province-specific rules aren't modelled. The page's own footer lists
+  (federal and provincial brackets, basic personal amounts and the main
+  senior credits), not what the Canada Revenue Agency would actually
+  calculate. Several province-specific rules aren't modelled. The page's own footer lists
   the specific gaps.
 - **Not financial advice.** It's arithmetic on assumptions you supply. Garbage
   in, garbage out — the answer is only as good as your inputs.
